@@ -1,0 +1,19 @@
+{
+  "name": "holeshot",
+  "private": true,
+  "type": "module",
+  "description": "Jet ski closed-course racing from behind your ski. A static web app that installs to a phone's home screen.",
+  "scripts": {
+    "build": "node build.mjs",
+    "start": "node build.mjs && node serve.mjs",
+    "sim": "node tools/sim.mjs",
+    "test": "node tests/smoke.mjs",
+    "model": "node tools/prep-model.mjs"
+  },
+  "engines": {
+    "node": ">=18"
+  },
+  "devDependencies": {
+    "playwright": "1.64.1"
+  }
+}

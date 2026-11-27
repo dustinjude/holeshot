@@ -1,0 +1,342 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover,user-scalable=no">
+<title>Holeshot</title>
+<meta name="description" content="Jet ski closed-course racing from behind your ski.">
+<meta name="theme-color" content="#06202a">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="Holeshot">
+<link rel="manifest" href="manifest.webmanifest">
+<link rel="icon" href="icons/icon-192.png">
+<link rel="apple-touch-icon" href="icons/apple-touch-icon.png">
+<style>:root{color-scheme:dark}html,body{margin:0;-webkit-tap-highlight-color:transparent;-webkit-user-select:none;user-select:none;overscroll-behavior:none}img{max-width:100%}</style>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Barlow+Condensed:ital,wght@0,600;0,700;1,700;1,800&family=Barlow:wght@400;600&display=swap">
+<style>
+/* Layout: one full-bleed view of the water from low behind your ski, drawn in 3D with a flat canvas over
+   it for the map, name tags and turn arrows. Race information sits in a timing strip pinned to the top
+   edge with flow bars and a rev bar under it; everything chosen or read between races is a white race
+   number plate centred over the course. Single look by choice: the page is the water, and the water
+   changes with the site. */
+:root{
+  --deep:#083b4a; --water:#0f6273; --foam:#f1fbf8; --ink:#06202a; --ink-rgb:6,32,42;
+  --plate:#fcfdfb; --red:#e4392c; --yellow:#ffc62a; --go:#3ddc97; --muted:#566d75; --mist:#a9d2d6;
+  --display:"Barlow Condensed","Roboto Condensed","Arial Narrow",Impact,sans-serif;
+  --body:"Barlow","Helvetica Neue",Arial,sans-serif;
+  color-scheme:light;
+}
+*{box-sizing:border-box}
+html,body{height:100%}
+body{background:var(--water);color:var(--foam);font-family:var(--body);overflow:hidden;
+  touch-action:none;user-select:none;-webkit-user-select:none;-webkit-touch-callout:none;overscroll-behavior:none}
+#gl,#sea{position:fixed;inset:0;width:100%;height:100%;display:block;touch-action:none}
+
+.hud{position:fixed;inset:0 0 auto;z-index:3;display:grid;grid-template-columns:1fr 1fr 1.5fr 1fr;column-gap:8px;row-gap:7px;
+  padding-top:calc(env(safe-area-inset-top,0px) + 9px);padding-bottom:22px;
+  padding-left:max(16px,env(safe-area-inset-left,0px));padding-right:max(16px,env(safe-area-inset-right,0px));
+  background:linear-gradient(to bottom,rgba(var(--ink-rgb),.88),rgba(var(--ink-rgb),.6) 66%,rgba(var(--ink-rgb),0));
+  pointer-events:none}
+.stat{display:flex;flex-direction:column;gap:2px;min-width:0}
+.stat.end{align-items:flex-end}
+.lbl{font:600 11px/1 var(--display);letter-spacing:.16em;text-transform:uppercase;color:var(--mist)}
+.val{font:italic 800 28px/1 var(--display);font-variant-numeric:tabular-nums;color:var(--foam);white-space:nowrap}
+.val small{font-size:.55em;font-weight:700;color:var(--mist);margin-left:2px}
+.tach{grid-column:1/-1;display:grid;grid-template-columns:auto 1fr auto;gap:10px;align-items:center}
+.flow{display:flex;align-items:center;gap:3px}
+.flow span{margin-right:4px;font:600 11px/1 var(--display);letter-spacing:.16em;text-transform:uppercase;color:var(--mist)}
+.flow i{width:12px;height:6px;border-radius:2px;background:rgba(241,251,248,.24)}
+.flow i.on{background:var(--yellow)}
+.rev{position:relative;height:6px;border-radius:3px;overflow:hidden;
+  background:linear-gradient(90deg,var(--go) 0,var(--go) 58%,var(--yellow) 80%,var(--red) 93%)}
+.rev i{position:absolute;inset:0;background:rgba(var(--ink-rgb),.86);transform-origin:right center;transform:scaleX(.92)}
+.rpm{min-width:66px;text-align:right;font:600 11px/1 var(--display);letter-spacing:.12em;text-transform:uppercase;
+  color:var(--mist);font-variant-numeric:tabular-nums}
+
+.sub{position:fixed;z-index:3;top:calc(env(safe-area-inset-top,0px) + 82px);left:max(16px,env(safe-area-inset-left,0px));
+  display:none;flex-direction:column;gap:9px;align-items:flex-start;pointer-events:none}
+body.live .sub{display:flex}
+.icon{pointer-events:auto;appearance:none;width:44px;height:44px;border-radius:50%;border:1.5px solid rgba(241,251,248,.55);
+  background:rgba(var(--ink-rgb),.55);color:var(--foam);display:grid;place-items:center;cursor:pointer;padding:0}
+.icon svg{width:16px;height:16px;display:block}
+.gaps{display:grid;gap:4px;font:600 12px/1 var(--display);letter-spacing:.1em;text-transform:uppercase;color:var(--foam);
+  text-shadow:0 1px 0 rgba(var(--ink-rgb),.8);font-variant-numeric:tabular-nums}
+
+.banner{position:fixed;z-index:3;left:0;right:0;top:41%;display:grid;gap:8px;justify-items:center;text-align:center;pointer-events:none;
+  padding-left:max(16px,env(safe-area-inset-left,0px));padding-right:max(16px,env(safe-area-inset-right,0px));
+  color:var(--foam);text-shadow:0 2px 0 rgba(var(--ink-rgb),.7)}
+.banner b,.banner span{padding:6px 11px;border-radius:3px;background:rgba(var(--ink-rgb),.62)}
+.banner b{font:600 15px/1.2 var(--display);letter-spacing:.16em;text-transform:uppercase}
+.banner span{max-width:30ch;font:400 14px/1.4 var(--body);text-wrap:balance}
+.flash{position:fixed;z-index:3;left:0;right:0;top:24%;text-align:center;pointer-events:none;
+  padding-left:max(16px,env(safe-area-inset-left,0px));padding-right:max(16px,env(safe-area-inset-right,0px));
+  font:italic 800 36px/1 var(--display);text-transform:uppercase;letter-spacing:.02em;color:var(--foam);
+  text-shadow:0 3px 0 rgba(var(--ink-rgb),.6);opacity:0;transition:opacity .14s}
+.flash.on{opacity:1}
+.flash.big{font-size:120px}
+.flash.bad{color:var(--yellow)}
+
+.pad{position:fixed;z-index:2;bottom:calc(env(safe-area-inset-bottom,0px) + 22px);width:76px;height:76px;border-radius:50%;
+  border:2px solid rgba(241,251,248,.5);display:none;place-items:center;pointer-events:none;color:var(--foam);
+  opacity:.5;transition:opacity .1s,transform .1s,background-color .1s}
+body.live.pads .pad{display:grid}
+.pad.on{opacity:1;background:rgba(241,251,248,.24);transform:scale(.93)}
+.pad-l{left:max(16px,env(safe-area-inset-left,0px))}
+.pad-r{right:max(16px,env(safe-area-inset-right,0px))}
+.pad svg{width:30px;height:30px}
+
+.plate{position:fixed;z-index:4;left:50%;top:50%;transform:translate(-50%,-50%);
+  width:min(380px,calc(100% - 2 * max(16px,env(safe-area-inset-left,0px),env(safe-area-inset-right,0px))));
+  max-height:calc(100% - 28px);overflow:auto;background:var(--plate);color:var(--ink);border-radius:5px;
+  padding:16px 16px 14px;box-shadow:0 20px 56px rgba(var(--ink-rgb),.5);display:flex;flex-direction:column;gap:9px}
+#start{overflow:hidden}
+.eyebrow{font:600 12px/1.2 var(--display);letter-spacing:.16em;text-transform:uppercase;color:var(--muted)}
+.plate h1{margin:0;font:italic 800 58px/.88 var(--display);text-transform:uppercase;text-wrap:balance}
+#start h1{font-size:40px}
+.plate p{margin:0;font-size:15px;line-height:1.45}
+.fine{font-size:13px;line-height:1.4;color:var(--muted)}
+
+.tabs{display:grid;grid-template-columns:repeat(4,1fr);border:2px solid var(--ink);border-radius:4px;overflow:hidden;flex:none}
+.tabs.two{grid-template-columns:repeat(2,1fr)}
+.tabs.three{grid-template-columns:repeat(3,1fr)}
+.tabs.five{grid-template-columns:repeat(5,1fr)}
+.tabs.five .tab{font-size:12.5px;letter-spacing:.02em}
+.tab{appearance:none;min-width:0;border:0;background:var(--plate);color:var(--ink);cursor:pointer;padding:10px 2px;
+  font:600 14px/1 var(--display);letter-spacing:.08em;text-transform:uppercase}
+.tab[aria-pressed="true"]{background:var(--ink);color:var(--foam)}
+.opts{display:grid;gap:7px;margin:2px 0 12px}
+.orow{display:grid;grid-template-columns:minmax(0,.8fr) minmax(0,1.6fr);gap:10px;align-items:center}
+.orow .tab{padding:9px 2px;font-size:13px;letter-spacing:.04em}
+.orow .tabs.three .tab{font-size:11.5px;letter-spacing:0}
+.panel{flex:1 1 auto;min-height:0;overflow:auto;overscroll-behavior:contain;touch-action:pan-y}
+.list{display:grid;grid-template-columns:minmax(0,1fr);gap:4px;--k:3}
+.list p{margin:4px 2px}
+.cols,.opt{display:grid;grid-template-columns:minmax(108px,1.5fr) repeat(var(--k),minmax(0,1fr));gap:8px;align-items:center}
+.list.craft .cols,.list.craft .opt{grid-template-columns:146px repeat(4,minmax(0,1fr))}
+.list.craft .opt{font-size:15px;letter-spacing:0}
+.list.craft .cols{letter-spacing:.03em}
+.cols span{min-width:0}
+.cols{position:sticky;top:0;z-index:1;background:var(--plate);padding:3px 8px 4px;
+  font:600 10px/1.1 var(--display);letter-spacing:.1em;text-transform:uppercase;color:var(--muted)}
+.opt{appearance:none;width:100%;min-width:0;text-align:left;border:0;border-radius:3px;background:rgba(var(--ink-rgb),.06);color:var(--ink);
+  cursor:pointer;padding:7px 8px;font:600 16px/1.1 var(--display);letter-spacing:.02em;text-transform:uppercase}
+.opt[aria-pressed="true"],.opt.cur{background:var(--ink);color:var(--foam)}
+.opt:disabled{opacity:.5;cursor:default}
+div.opt{cursor:default}
+.opt .nm{display:flex;align-items:center;gap:7px;min-width:0}
+.sw{flex:none;width:18px;height:9px;border-radius:3px 8px 8px 3px;border:1.5px solid rgba(var(--ink-rgb),.7)}
+.opt[aria-pressed="true"] .sw{border-color:var(--foam)}
+.cf{flex:none;display:block;width:36px;height:17px}
+.ci{flex:none;display:block;width:40px;height:52px}
+.cf rect{fill:var(--plate)}
+.opt[aria-pressed="true"] .cf rect{fill:var(--ink)}
+.bar{display:block;height:7px;border-radius:2px;background:rgba(var(--ink-rgb),.15);overflow:hidden}
+.bar b{display:block;height:100%;background:var(--ink)}
+.opt[aria-pressed="true"] .bar{background:rgba(241,251,248,.25)}
+.opt[aria-pressed="true"] .bar b{background:var(--yellow)}
+.opt.site{grid-template-columns:40px minmax(0,1fr) auto;align-items:center;padding:8px}
+.opt small{display:block;margin-top:4px;font:400 13px/1.35 var(--body);letter-spacing:0;text-transform:none;opacity:.85}
+.opt .laps{text-align:right;font-size:14px;white-space:nowrap}
+.paint{display:flex;flex-wrap:wrap;gap:7px;align-items:center;padding:8px 2px 2px}
+.dab{appearance:none;width:30px;height:30px;border-radius:50%;border:2px solid rgba(var(--ink-rgb),.35);cursor:pointer;padding:0;
+  font:600 9px/1 var(--display);letter-spacing:.04em;text-transform:uppercase;color:var(--ink);background:var(--plate)}
+.dab[aria-pressed="true"]{border-color:var(--ink);box-shadow:0 0 0 2px var(--plate),0 0 0 4px var(--ink)}
+
+.ride{display:grid;grid-template-columns:repeat(4,1fr);gap:8px;flex:none}
+.ride div{display:grid;gap:4px;min-width:0}
+.ride span{font:600 10px/1 var(--display);letter-spacing:.1em;text-transform:uppercase;color:var(--muted)}
+.rules{display:grid;gap:9px;margin:0 0 10px;padding:4px 0 0;list-style:none}
+.rules li{display:grid;grid-template-columns:16px 1fr;gap:10px;align-items:start;font-size:15px;line-height:1.4;min-width:0}
+.dot{width:14px;height:14px;border-radius:50%;margin-top:4px;box-shadow:inset -3px -3px 0 rgba(var(--ink-rgb),.22)}
+.dot.r{background:var(--red)}
+.dot.y{background:var(--yellow)}
+.dot.w{background:var(--plate);border:2px solid var(--ink);box-shadow:none}
+#rules p+p{margin-top:8px}
+
+.go{appearance:none;flex:none;border:0;border-radius:4px;background:var(--ink);color:var(--foam);cursor:pointer;
+  font:italic 800 26px/1 var(--display);text-transform:uppercase;letter-spacing:.04em;padding:13px 16px}
+.alt{appearance:none;flex:none;border:2px solid var(--ink);border-radius:4px;background:var(--plate);color:var(--ink);cursor:pointer;
+  font:italic 700 18px/1 var(--display);text-transform:uppercase;letter-spacing:.04em;padding:10px 16px}
+.icon:focus-visible,.go:focus-visible,.alt:focus-visible,.tab:focus-visible,.opt:focus-visible,.dab:focus-visible{outline:3px solid var(--yellow);outline-offset:-1px}
+.board{display:grid;margin:0;padding:0;list-style:none;border-top:2px solid var(--ink)}
+.board li{display:grid;grid-template-columns:22px 1fr auto;gap:8px;align-items:baseline;padding:6px;
+  border-bottom:1px solid rgba(var(--ink-rgb),.15);font:400 15px/1.2 var(--body);font-variant-numeric:tabular-nums;min-width:0}
+.board li.me{font-weight:600;background:rgba(255,198,42,.32)}
+.board small{font-size:12px;color:var(--muted);margin-left:6px}
+.statsRow{display:grid;grid-template-columns:repeat(4,1fr);gap:6px}
+.statsRow div{display:grid;gap:3px;min-width:0;padding:7px 6px;border-radius:3px;background:rgba(var(--ink-rgb),.06)}
+.statsRow span{font:600 10px/1 var(--display);letter-spacing:.1em;text-transform:uppercase;color:var(--muted)}
+.statsRow b{font:italic 700 18px/1 var(--display);font-variant-numeric:tabular-nums;white-space:nowrap}
+
+@media (hover:hover) and (pointer:fine){.pad{display:none!important}}
+@media (prefers-reduced-motion:reduce){.flash,.pad{transition:none}}
+
+/* drag mode: no steering pads */
+body.drag .pad{display:none!important}
+.tab:disabled{opacity:.3;cursor:default}
+/* garage: a wallet and class row, then parts, setup and service as ruled rows with one action each */
+.gar{display:grid;gap:8px}
+.gtop{display:flex;justify-content:space-between;align-items:baseline;gap:10px}
+.cash{font:italic 800 28px/1 var(--display);color:var(--ink)}
+.grow{display:grid;grid-template-columns:minmax(0,1fr) auto;gap:6px 10px;align-items:center;padding:9px 0 3px;border-top:1px solid rgba(6,32,42,.16)}
+.grow b{font:700 16px/1.15 var(--display);text-transform:uppercase;letter-spacing:.03em}
+.grow small{display:block;margin-top:2px;font-size:12.5px;line-height:1.3;color:#4a5a62}
+.pips{display:inline-flex;gap:3px;margin-left:8px;vertical-align:2px}
+.pips i{width:13px;height:6px;border-radius:2px;background:rgba(6,32,42,.18)}
+.pips i.on{background:var(--ink)}
+.pips i.over{background:#b8862a}
+.gbtn{min-height:42px;min-width:104px;padding:0 10px;border:2px solid var(--ink);border-radius:4px;background:var(--ink);color:#fcfdfb;font:700 14px/1.1 var(--display);letter-spacing:.04em;text-transform:uppercase;cursor:pointer}
+.gbtn:disabled{background:transparent;color:#75828a;border-color:#b9c2c6;cursor:default}
+.steps{grid-column:1/-1;display:grid;grid-template-columns:repeat(5,1fr);gap:4px}
+.steps button{min-height:36px;border:2px solid var(--ink);border-radius:3px;background:transparent;cursor:pointer}
+.steps button[aria-pressed=true]{background:var(--ink)}
+.ends{grid-column:1/-1;display:flex;justify-content:space-between;font-size:12.5px;color:#4a5a62}
+.cond{grid-column:1/-1;height:8px;border-radius:4px;background:rgba(6,32,42,.14);overflow:hidden}
+.cond i{display:block;height:100%;background:#1f9d8a}
+.cond i.low{background:#e4392c}
+/* the award ceremony: the podium fills the screen, the top three sit in a strip at the foot */
+.cer{position:fixed;z-index:4;left:50%;transform:translateX(-50%);bottom:calc(env(safe-area-inset-bottom,0px) + 12px);
+  width:min(380px,calc(100% - 2 * max(16px,env(safe-area-inset-left,0px),env(safe-area-inset-right,0px))));
+  background:var(--plate);color:var(--ink);border-radius:5px;padding:12px 14px;box-shadow:0 16px 44px rgba(var(--ink-rgb),.45);
+  display:flex;flex-direction:column;gap:8px;animation:cerIn .5s ease-out both}
+@keyframes cerIn{from{opacity:0;transform:translate(-50%,24px)}}
+@media (prefers-reduced-motion:reduce){.cer{animation:none}}
+.cer h2{margin:0;font:italic 800 34px/.9 var(--display);text-transform:uppercase;text-wrap:balance}
+.cer ol{display:grid;margin:0;padding:0;list-style:none;border-top:2px solid var(--ink)}
+.cer li{display:grid;grid-template-columns:26px minmax(0,1fr) auto;gap:10px;align-items:center;padding:6px 4px;border-bottom:1px solid rgba(var(--ink-rgb),.15);
+  font:600 16px/1.2 var(--body);font-variant-numeric:tabular-nums}
+.cer li.me{background:rgba(255,198,42,.32)}
+.cer li span:nth-child(2){overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.cer .medal{display:grid;place-items:center;width:26px;height:26px;border-radius:50%;color:#0b1013;font:italic 800 16px/1 var(--display);box-shadow:inset 0 -2px 0 rgba(0,0,0,.18)}
+.cer .go{padding:11px 16px;font-size:22px}
+body.cering .hud,body.cering #pauseBtn{visibility:hidden}
+[hidden]{display:none!important}
+</style>
+</head>
+<body>
+<canvas id="gl" aria-hidden="true"></canvas>
+<canvas id="sea" aria-label="The race, seen from behind your ski"></canvas>
+
+<header class="hud" id="hud">
+  <div class="stat"><span class="lbl">Pos</span><span class="val"><span id="pos">1</span><small id="posN">/10</small></span></div>
+  <div class="stat"><span class="lbl">Lap</span><span class="val"><span id="lap">1</span><small id="lapN">/2</small></span></div>
+  <div class="stat"><span class="lbl">Time</span><span class="val" id="time">0:00.0</span></div>
+  <div class="stat end"><span class="lbl">MPH</span><span class="val" id="mph">0</span></div>
+  <div class="tach"><div class="flow" id="flow" aria-hidden="true"><span>Flow</span><i></i><i></i><i></i><i></i><i></i></div><div class="rev"><i id="revFill"></i></div><span class="rpm" id="rpm">1,800 rpm</span></div>
+</header>
+
+<div class="sub" id="sub">
+  <button class="icon" id="pauseBtn" type="button" aria-label="Pause"><svg viewBox="0 0 16 16" aria-hidden="true"><rect x="2.5" y="1.5" width="4" height="13" rx="1" fill="currentColor"/><rect x="9.5" y="1.5" width="4" height="13" rx="1" fill="currentColor"/></svg></button>
+  <div class="gaps"><span id="gapA"></span><span id="gapB"></span></div>
+</div>
+<div class="banner" id="banner" hidden><b id="banT"></b><span id="banH"></span></div>
+<div class="flash" id="flash" aria-live="polite"></div>
+
+<div class="pad pad-l" id="padL" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><path d="M15 4l-8 8 8 8" fill="none"/></svg></div>
+<div class="pad pad-r" id="padR" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><path d="M9 4l8 8-8 8" fill="none"/></svg></div>
+
+<section class="plate" id="start">
+  <div class="eyebrow">Closed course &middot; 10 riders</div>
+  <h1>Holeshot</h1>
+  <div class="tabs five">
+    <button class="tab" id="modeS" type="button" aria-pressed="true">Race</button>
+    <button class="tab" id="modeT" type="button" aria-pressed="false">Tour</button>
+    <button class="tab" id="modeD" type="button" aria-pressed="false">Drag</button>
+    <button class="tab" id="modeI" type="button" aria-pressed="false">Items</button>
+    <button class="tab" id="modeC" type="button" aria-pressed="false">Crates</button>
+  </div>
+  <div class="tabs five">
+    <button class="tab" id="tabR" type="button" aria-pressed="true">Racer</button>
+    <button class="tab" id="tabC" type="button" aria-pressed="false">Craft</button>
+    <button class="tab" id="tabG" type="button" aria-pressed="false">Garage</button>
+    <button class="tab" id="tabS" type="button" aria-pressed="false">Site</button>
+    <button class="tab" id="tabH" type="button" aria-pressed="false">More</button>
+  </div>
+  <div class="panel" id="panel">
+    <div class="list" id="list"></div>
+    <div class="gar" id="garage" hidden></div>
+    <div id="rules" hidden>
+      <div class="opts" id="optsMore"></div>
+      <div class="opts">
+        <div class="eyebrow" id="lvLabel">Rivals: Auto</div>
+        <div class="tabs five" id="lvRow">
+          <button class="tab" id="rvauto" type="button" aria-pressed="true">Auto</button>
+          <button class="tab" id="rv0" type="button" aria-pressed="false">Easy</button>
+          <button class="tab" id="rv1" type="button" aria-pressed="false">Medium</button>
+          <button class="tab" id="rv2" type="button" aria-pressed="false">Hard</button>
+          <button class="tab" id="rv3" type="button" aria-pressed="false">Pro</button>
+        </div>
+      </div>
+      <ul class="rules">
+        <li><span class="dot w"></span><span>Stay in the lane between the two lines of floats. Leave it and the engine is held back until you are back in.</span></li>
+        <li><span class="dot r"></span><span>Red floats and a red buoy mark the inside of a left turn.</span></li>
+        <li><span class="dot y"></span><span>Yellow floats and a yellow buoy mark the inside of a right turn.</span></li>
+      </ul>
+      <p><b>Steering:</b> you ride from behind your ski. Hold the left or right side of the screen to turn that way. The throttle is automatic. Hold both sides to brake.</p>
+      <p><b>Slide</b> swaps the two sides for one thumb: slide it left or right to turn the bars. A second thumb brakes.</p>
+      <p><b>Items:</b> a race with item boxes. Drive through a box to pick up a Turbo, a Mine to drop behind you, a Torpedo that hunts the rider ahead, or a Shield that blocks one hit. Tap the round item button at the foot of the screen, or the up arrow, to use it. Riders at the back get more Turbos and Torpedoes. Coins in the lane add top speed, up to ten; a hit spins you out and costs three. <b>Slide boost:</b> hold a hard turn at speed and a charge fills round the item button; let go once it turns orange for a burst, or red for a bigger one.</p>
+      <p><b>Crates:</b> a solo run through the course. Smash crates, hit the ramps to jump for the ones in the air, and dodge the mines: each mine costs a life and puts you back at the last checkpoint. Lose all three and the run is over. Gold for 90% of the crates.</p>
+      <p><b>Drag:</b> two skis, 1,000 feet, a pro tree. Both ride the same craft with the same build, so the race is your reaction. The two stage lights come on, then all three ambers together, and the green four tenths of a second after them. Tap anywhere to go. Then three green trim lights come on down the strip: tap each the instant it lights and the hull trims up and runs faster for the rest of the run. Slow taps give some of that away, a missed one gives it all, and a tap with no light on costs you the next trim. Go before the green and it is a red light: you lose. Leave on the ambers and you can beat the green itself; that is how the final is won. Three rounds, a quicker rival each round. Drag parts in the Garage take a few hundredths each off your run, and the later rivals have them.</p>
+      <p><b>Garage:</b> you start with a bare ski and $3,500, and every finish pays prize money. Spend it on parts, three levels of each, and service the engine, supercharger and pump as they wear. Setup is free: each setting trades one strength for another. Each craft has its own build.</p>
+      <p class="fine"><b>Classes:</b> Stock counts parts up to level 1, Limited up to level 2, Open all three. The whole field is built to the class limit, so a ski short of it is giving speed away, and parts above it do not count. Bigger classes are faster and pay more.</p>
+      <p><b>The start:</b> the 2 card, the 1 card, then the band drops and everyone goes. The first buoy is a long run away: that run is the holeshot.</p>
+      <p><b>Rough water:</b> swell, chop and wakes throw the ski into the air. Up there nothing drives it and the bars do little. Land with the bars straight: come down with them turned and the landing scrubs speed.</p>
+      <p class="fine"><b>Ocean sites:</b> Daytona Beach and Stormhead Rocks run in a big swell. Off the top of a wave the ski flies, and the troughs hide the next buoy until you climb out of them.</p>
+      <p class="fine"><b>Rough patches:</b> the pale blobs on the course map are places where the water stands up taller: surf along a beach, wind in a canyon mouth, crossed wakes. Expect air there, and line up straight before you reach one.</p>
+      <p class="fine"><b>Wakes:</b> cross a rival's wake and it kicks you up. Sit right behind one and you ride their rough water, slower and with less grip, so pull out to pass.</p>
+      <p class="fine"><b>On screen:</b> arrows under the timing strip call the next turn in its buoy's colour, more of them for a tighter turn. Markers at the foot of the screen are rivals right behind you.</p>
+      <p class="fine"><b>Flow:</b> take a turn buoy close on the inside, without having left the lane, and a flow bar lights. Each bar is a little more top speed, up to five. Run off course and they go out.</p>
+      <p class="fine"><b>Rider aids</b> line the ski up with the lane when your thumbs are off, ease it away from the edges, lift the throttle before a turn too tight to take flat out, and lay arrows on the water showing the way ahead. Turn them off and all of that is yours.</p>
+      <p class="fine"><b>Response:</b> Calm moves the bars gently, Quick snaps them over.</p>
+      <p class="fine"><b>Rivals:</b> the field starts at Pro. Pin it at Easy, Medium or Hard if you want it gentler, or pick Auto and it matches itself to you: win and they are quicker next race, finish down the order and they ease off. Quick rivals cut to the inside of the turns, and at every level the riders behind you push.</p>
+      <p class="fine"><b>Want it harder still?</b> Turn Rider aids off: no help lining up, and the throttle stays pinned into every turn unless you brake.</p>
+      <p class="fine"><b>Water and land:</b> rough water also costs a little speed and grip, less on a stable craft. Turn buoys give way and banks glance you off, both for some speed. A ski that gets lost is put back in the lane.</p>
+      <p class="fine"><b>Flags:</b> the white flag is the last lap, the checkered flag is the finish.</p>
+      <p class="fine"><b>Tour:</b> eight race weekends, ending at Lake Havasu. Each weekend is two motos on the same course, and moto 2 lines up in the order moto 1 finished. Each moto pays 25, 20, 16, 13, 11, 9, 7, 5, 3, 1; the two add up to the weekend overall, a tie going to whoever was ahead in moto 2. The weekend overall pays series points on the same scale, and the top three of each weekend and of the series go up on the podium.</p>
+      <p class="fine"><b>Keyboard:</b> left and right arrows steer, down brakes, P pauses.</p>
+    </div>
+  </div>
+  <div class="ride" id="ride"></div>
+  <p class="fine" id="setup">Dustin &middot; Sea-Doo 325 &middot; Lake Havasu</p>
+  <button class="go" id="go" type="button">Start race</button>
+  <button class="alt" id="quit" type="button" hidden>Abandon tour</button>
+</section>
+
+<section class="plate" id="result" hidden>
+  <div class="eyebrow" id="resEyebrow">Checkered flag</div>
+  <h1 id="place">1st</h1>
+  <div class="statsRow" id="stats"></div>
+  <ol class="board" id="board"></ol>
+  <p class="fine" id="sum"></p>
+  <button class="go" id="again" type="button">Race again</button>
+  <button class="alt" id="podBtn" type="button" hidden>Podium</button>
+  <button class="alt" id="swap" type="button">Change setup</button>
+</section>
+
+<section class="cer" id="cer" hidden aria-live="polite">
+  <div class="eyebrow" id="cerEyebrow">Award ceremony</div>
+  <h2 id="cerTitle">Podium</h2>
+  <ol id="cerList"></ol>
+  <button class="go" id="cerGo" type="button">Continue</button>
+</section>
+
+<section class="plate" id="pause" hidden>
+  <div class="eyebrow">Race paused</div>
+  <h1>Paused</h1>
+  <div class="opts" id="optsPause"></div>
+  <button class="go" id="resume" type="button">Resume</button>
+  <button class="alt" id="restart" type="button">Restart</button>
+  <button class="alt" id="toSetup" type="button">Back to setup</button>
+</section>
+
+<!-- three.js r128 and its glTF loader are kept in js/ so the installed app works with no connection -->
+<script src="js/three.min.js"></script>
+<script src="js/GLTFLoader.js"></script>
+<script src="js/game.js"></script>
+<script>
+if('serviceWorker' in navigator&&location.protocol==='https:') window.addEventListener('load',()=>navigator.serviceWorker.register('sw.js').catch(()=>{}));
+</script>
+</body>
+</html>
