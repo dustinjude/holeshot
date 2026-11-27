@@ -14,6 +14,7 @@ checked and what you couldn't check.
 - `npm run build`: assemble `src/` into `dist/` (`node build.mjs`, no dependencies). Always rebuild after editing `src/`.
 - `npm start`: build, then serve `dist/` at http://localhost:8000 and print a Wi-Fi address for a phone.
 - `npm run sim` (or `node tools/sim.mjs arena`): whole races in Node, no browser.
+- `npm run test:story`: the Claude writing (preview, crew chief, magazine, championship call) with the functions stubbed; runs a tour's last moto to the end of the season.
 - `npm test`: build a test copy and race it in headless Chrome at iPhone Pro Max size. First run:
   `npm install && npx playwright install chromium`.
 - `npm run model -- <file.glb> <name>`: shrink a 3D model into `models/<name>/` (see Models).
@@ -112,3 +113,22 @@ Chris Macclugage #46, Dustin Charrier #40. Deven, Tory, Andre and GJ have placeh
 such as holeshot.deanstrong.cc). Installing to the home screen and offline play need https. The old claude.ai link,
 https://claude.ai/artifact/CDz3WUr9mC15hBtwL5vFQq, is frozen at the version this project started from and is not
 updated by anything here.
+
+## The booth call
+
+`netlify/functions/race-call.mjs` (served at `/api/race-call`) asks Claude (`claude-haiku-5-5`) for a short announcer
+call from the race facts `boothCall` in shell.js sends after `finish()`. The key is `ANTHROPIC_API_KEY` in Netlify's
+environment, never in the repo. The function takes structured race facts only (no free text), checks the origin
+against holeshotgame.netlify.app and its deploy previews, and rate-limits per address. The racers are real people:
+the prompt keeps the call good-natured and limited to the facts given, so keep it that way if you change it.
+
+## More Claude writing
+
+`netlify/functions/story.mjs` (served at `/api/story`, same key, origin check and rate limit as the booth call) has
+four kinds: `intro` (Preview the race, on the start screen, `buildPreview` from `summary()`), `crew` (Ask the crew
+chief, top of the garage, `crewBox`, using `lastRace` from `finish()`), `mag` (Watercraft Weekly on the weekend overall
+and the season finale issue on the final standings, `magBox`, drawn into `#extra`, which `board()` clears) and `champ`
+(the announcer's line under the championship podium, `champCall`, asked by `startCeremony` when `o.champ`). The first
+three come only on a tap; the championship call asks by itself, once a season. `storyBox` draws a button, waiting line
+or reply; replies live in `STORY` in memory, never saved. The prompts keep the riders' real-people rule and tell the
+crew chief to recommend only listed parts, settings and services within the cash.

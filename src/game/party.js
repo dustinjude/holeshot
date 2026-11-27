@@ -37,6 +37,7 @@ function startCeremony(o){
     if(/\(you\)/.test(r.name)) li.className='me';
     li.append(d,n,v); el.cerList.appendChild(li);
   });
+  el.cerCall.hidden=true; if(o.champ) champCall();
   el.cer.hidden=false; document.body.classList.add('cering');
   if(G.on) g3CerStart(o.rows); else confetti2D(220);
   fanfare(true); buzz(40);

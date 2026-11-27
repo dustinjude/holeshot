@@ -97,6 +97,17 @@ body.live.pads .pad{display:grid}
 #start h1{font-size:40px}
 .plate p{margin:0;font-size:15px;line-height:1.45}
 .fine{font-size:13px;line-height:1.4;color:var(--muted)}
+/* the booth call on the results screen: written by Claude from the race that just finished */
+.call{margin:0;padding:8px 10px;border-left:3px solid var(--yellow);background:rgba(var(--ink-rgb),.05);font:italic 400 14.5px/1.4 var(--body)}
+.call.wait{color:var(--muted)}
+/* Claude's longer pieces: the race preview, the crew chief and Watercraft Weekly */
+.storybox{display:grid;gap:6px}
+.storybox:empty{display:none}
+.storybox .alt{padding:9px 14px;font-size:16px}
+.story{display:grid;gap:6px;padding:8px 10px;border-left:3px solid var(--yellow);background:rgba(var(--ink-rgb),.05)}
+.story b{font:700 16px/1.15 var(--display);text-transform:uppercase;letter-spacing:.03em}
+.story p{margin:0;font-size:14.5px;line-height:1.4}
+.story small{font-size:12px;color:var(--muted)}
 
 .tabs{display:grid;grid-template-columns:repeat(4,1fr);border:2px solid var(--ink);border-radius:4px;overflow:hidden;flex:none}
 .tabs.two{grid-template-columns:repeat(2,1fr)}
@@ -300,6 +311,7 @@ body.cering .hud,body.cering #pauseBtn{visibility:hidden}
   </div>
   <div class="ride" id="ride"></div>
   <p class="fine" id="setup">Dustin &middot; Sea-Doo 325 &middot; Lake Havasu</p>
+  <div class="storybox" id="preview"></div>
   <button class="go" id="go" type="button">Start race</button>
   <button class="alt" id="quit" type="button" hidden>Abandon tour</button>
 </section>
@@ -309,6 +321,8 @@ body.cering .hud,body.cering #pauseBtn{visibility:hidden}
   <h1 id="place">1st</h1>
   <div class="statsRow" id="stats"></div>
   <ol class="board" id="board"></ol>
+  <p class="call" id="call" hidden></p>
+  <div class="storybox" id="extra"></div>
   <p class="fine" id="sum"></p>
   <button class="go" id="again" type="button">Race again</button>
   <button class="alt" id="podBtn" type="button" hidden>Podium</button>
@@ -319,6 +333,7 @@ body.cering .hud,body.cering #pauseBtn{visibility:hidden}
   <div class="eyebrow" id="cerEyebrow">Award ceremony</div>
   <h2 id="cerTitle">Podium</h2>
   <ol id="cerList"></ol>
+  <p class="call" id="cerCall" hidden></p>
   <button class="go" id="cerGo" type="button">Continue</button>
 </section>
 

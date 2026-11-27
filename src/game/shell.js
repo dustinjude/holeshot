@@ -6,7 +6,7 @@ const el={};
 for(const id of ['pos','posN','lap','lapN','time','mph','rpm','revFill','flow','flash','pauseBtn','gapA','gapB',
   'banner','banT','banH','start','result','pause','go','quit','again','swap','place','board','sum','stats','setup','resEyebrow',
   'padL','padR','hud','list','rules','panel','ride','modeS','modeT','tabR','tabC','tabS','tabH','optsMore','optsPause',
-  'lvLabel','resume','restart','toSetup','garage','tabG','modeD','modeI','modeC','podBtn','cer','cerEyebrow','cerTitle','cerList','cerGo']) el[id]=$(id);
+  'lvLabel','resume','restart','toSetup','garage','tabG','modeD','modeI','modeC','podBtn','cer','cerEyebrow','cerTitle','cerList','cerGo','call','preview','extra','cerCall']) el[id]=$(id);
 const COL={foam:'#f1fbf8',ink:'#06202a',red:'#e4392c',yellow:'#ffc62a'};
 const KEY='holeshot.';
 const RSTAT=[['launch','Launch',.9,1.16],['corner','Corners',.9,1.16],['chopR','Rough',.9,1.18]];
@@ -38,6 +38,7 @@ let skis=[],ais=[],pl=null,parts=[];
 let mode='idle',paused=false,clock=0,countT=0,card=0,finT=0,resAt=0,flashUntil=0;
 let lapSeen=0,lapStart=0,bestLap=0,rescSeen=0,landSeen=0;
 let stat={vmax:0,clean:0,turns:0,off:0,rough:0};
+let callSeq=0;                                               // see boothCall
 let camX=0,camY=0,camA=0,zoom=.6,shake=0,gapT=0,tagA=null,tagB=null,idleS=0,revShown=-1,flowShown=-1,SK=1;
 let QUAL=2,slowT=0,ftAvg=.016,calmT=1,acc=0,padL=false,padR=false,bothT=0,lastSide=0;
 const V={ox:0,oy:0,c:1,s:0,rot:0};
@@ -127,6 +128,7 @@ function buildGarage(){
   const cl=E('div','tabs three');
   CLASSES.forEach((c,i)=>{const t=E('button','tab',c.name); t.id='cls'+i; t.setAttribute('aria-pressed',String(i===gar.cls)); t.addEventListener('click',()=>{gar.cls=i; saveGar(); garChanged();}); cl.appendChild(t);});
   box.append(cl,E('p','fine',CLASSES[gar.cls].name+' class: parts count up to level '+cap+', and the whole field is built to that limit. A win against Pro rivals pays '+money(PURSE[0]*CLASSES[gar.cls].pay)+'.'));
+  const cb=E('div','storybox'); box.appendChild(cb); crewBox(cb);
   box.appendChild(E('div','eyebrow','Parts'));
   PARTS.forEach((p,i)=>{
     const row=E('div','grow'), l=b.p[i], left=E('div'), nm=E('b',null,p.name), pips=E('span','pips');
@@ -268,7 +270,7 @@ function place(){
 }
 
 function board(rows){
-  el.board.textContent='';
+  el.board.textContent=''; callSeq++; el.call.hidden=true; el.call.textContent=''; el.extra.textContent=''; delete el.extra.dataset.key;
   rows.forEach((r,i)=>{
     const li=document.createElement('li'); if(r.me) li.className='me';
     const a=document.createElement('span'); a.textContent=String(i+1);
@@ -341,11 +343,99 @@ function finish(){
   saveGar();
   const tired=Math.min(gb.w[0],gb.w[1],gb.w[2])<60?' Your ski needs work: see the Garage.':'';
   el.sum.textContent='Your time '+fmt(finT)+'. Prize '+money(prize)+'.'+(record&&best>0?' New personal best here.':'')+tired+tip;
+  lastRace={n:(lastRace?lastRace.n:0)+1,site:site.name,place:p,lap:bestLap>0?fmt(bestLap):'none',mph:Math.round(stat.vmax*MPH),clean:stat.clean,turns:stat.turns,off:stat.off,rough:Math.round(stat.rough)};
+  if(gmode==='single'||gmode==='tour'||gmode==='items') boothCall({mode:gmode==='items'?'item race':inTour?'tour':'race',site:site.name,reverse:!!rev,
+    rivals:paceName(racePace),place:p,moto:inTour?moto+1:0,round:stopNo,time:fmt(finT),bestLap:bestLap>0?fmt(bestLap):'none',
+    mph:Math.round(stat.vmax*MPH),clean:stat.clean,turns:stat.turns,off:stat.off,
+    field:rows.map(r=>({name:r.name,craft:r.craft,gap:+(r.t-win).toFixed(1)}))});
   el.podBtn.hidden=inTour;
   if(inTour){el.again.textContent=moto?'Weekend overall':'Weekend standings'; resAction=showWeekend; el.swap.hidden=true;}
   else{el.again.textContent='Race again'; resAction=startCountdown; el.swap.hidden=false;}
   resAt=clock+(p===1?4.4:1.1);
   if(p===1) celebrate(true);
+}
+
+// The booth call: a few sentences from an announcer about the race just run, written by Claude through the site's
+// /api/race-call function (netlify/functions/race-call.mjs). Offline, or anywhere that function isn't deployed, the
+// paragraph simply stays hidden. callSeq drops a reply that arrives after the results screen has moved on.
+function boothCall(facts){
+  const n=callSeq;
+  el.call.textContent='From the booth…'; el.call.className='call wait'; el.call.hidden=false;
+  fetch('/api/race-call',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(facts),signal:AbortSignal.timeout(12000)})
+    .then(r=>r.ok?r.json():null).then(d=>{
+      if(n!==callSeq) return;
+      if(d&&d.text){el.call.textContent=d.text; el.call.className='call';} else el.call.hidden=true;
+    }).catch(()=>{if(n===callSeq) el.call.hidden=true;});
+}
+
+// ---------- more writing by Claude ----------
+// The race preview on the start screen, the crew chief in the garage, Watercraft Weekly after each tour weekend and at
+// the end of the season, and the announcer's call at the championship ceremony, all through the site's /api/story
+// function (netlify/functions/story.mjs). The preview, crew chief and magazine come only when you tap for them; the
+// championship call comes by itself, once a season. Replies are kept in memory for this visit, never saved.
+const STORY={};
+let lastRace=null;                                           // the last race's numbers, for the crew chief
+function storyFetch(key,kind,facts,done){
+  const s=STORY[key]; if(s&&(s.wait||s.text)) return;
+  STORY[key]={wait:true}; done();
+  fetch('/api/story',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({kind,facts}),signal:AbortSignal.timeout(20000)})
+    .then(r=>r.ok?r.json():null).then(d=>{STORY[key]=d&&d.text?{text:d.text}:{err:1};}).catch(()=>{STORY[key]={err:1};}).then(done);
+}
+// The reply as a block of lines. With head, the first line is a headline and short lines without an ending stop are
+// section headings.
+function storyText(text,head,by){
+  const d=document.createElement('div'); d.className='story';
+  text.split(/\n+/).map(x=>x.trim()).filter(Boolean).forEach((x,i)=>{const h=head&&(i===0||(x.length<48&&!/[.!?:,]$/.test(x))); const e=document.createElement(h?'b':'p'); e.textContent=x; d.appendChild(e);});
+  if(by){const b=document.createElement('small'); b.textContent=by; d.appendChild(b);}
+  return d;
+}
+// Draws one reply into box: its button, a waiting line or the text. o: {kind, btn, about, wait, by, head, facts()}.
+function storyBox(box,key,o){
+  box.textContent=''; box.dataset.key=key;
+  const s=STORY[key], redraw=()=>{if(box.dataset.key===key) storyBox(box,key,o);};
+  if(s&&s.text){box.appendChild(storyText(s.text,o.head,o.by)); return;}
+  const p=document.createElement('p'); p.className='fine';
+  if(s&&s.wait){p.textContent=o.wait; box.appendChild(p); return;}
+  const b=document.createElement('button'); b.type='button'; b.className='alt'; b.textContent=o.btn;
+  b.addEventListener('click',()=>{const f=o.facts(); if(f) storyFetch(key,o.kind,f,redraw);});
+  p.textContent=s&&s.err?'That could not be written. It works on the online version, with a connection.':o.about;
+  box.append(b,p);
+}
+const seriesRows=()=>tourOrder().map(i=>({n:RACERS[i].full,you:i===tour.r,v:tour.pts[i]}));
+// The race preview: only for a race or a tour moto, and a new one whenever the race, ride or class changes.
+function buildPreview(){
+  const box=el.preview, ok=gmode==='single'||gmode==='tour'; box.hidden=!ok;
+  if(!ok){box.textContent=''; delete box.dataset.key; return;}
+  const t=gmode==='tour', key=['intro',gmode,site.id,rev?1:0,sel.r,sel.c,gar.cls,riv,t?tour.round:''].join(':');
+  storyBox(box,key,{kind:'intro',btn:'Preview the race',about:'Sends the course, the field and what is at stake to Claude, which sets the scene like the announcer.',wait:'From the booth…',by:'Written by Claude.',
+    facts:()=>({what:t?'Tour round '+(tStop()+1)+' of '+TOUR.length+', moto '+(tour.round%2+1):'A single race',site:site.name,rev,laps:LAPS,water:site.sub,you:RACERS[sel.r].full,craft:CRAFTS[sel.c].name,
+      cls:CLASSES[gar.cls].name,level:riv==='auto'?'Auto, now '+paceName(autoPace):paceName(pace()),field:RACERS.filter((x,i)=>i!==sel.r).map(x=>x.full),series:t&&tour.round>0?seriesRows():[]})});
+}
+// The crew chief: reads the garage for the craft you are working on and the last race. A new build, new cash or a new
+// race gives a fresh button.
+function crewBox(box){
+  const ci=myCraft(), b=build(ci), cap=CLASSES[gar.cls].cap, nx=gmode==='tour'?SITES[TOUR[tStop()][0]]:site;
+  const key=['crew',ci,gar.cls,Math.round(gar.cash),b.p.join(''),b.s.join(''),b.w.map(Math.round).join('.'),lastRace?lastRace.n:0,nx.id].join(':');
+  storyBox(box,key,{kind:'crew',btn:'Ask the crew chief',about:'Sends your parts, setup, wear, cash and last race to Claude, which says what to do next.',wait:'The crew chief is looking it over…',by:'Claude as your crew chief.',
+    facts:()=>({craft:CRAFTS[ci].name,cls:CLASSES[gar.cls].name,cap,cash:gar.cash,
+      parts:PARTS.map((p,i)=>({n:p.name,by:p.by||'',l:b.p[i],note:p.note,cost:b.p[i]<3?p.cost[b.p[i]]:0})),
+      setup:TUNE.map((t,i)=>({n:t.name,v:b.s[i],lo:t.lo,hi:t.hi})),wear:WEAR.map((w,k)=>({n:w,c:b.w[k],cost:serviceCost(k,b)})),
+      last:lastRace,next:nx.name,water:nx.sub})});
+}
+// Watercraft Weekly on the results plate: after a weekend's overall, or the season finale issue.
+function magBox(final){
+  const L=tour.last, S=L?SITES[TOUR[L.stop][0]]:site, key='mag:'+(final?'final':'r'+(L?L.stop:0))+':'+tour.hist.join('');
+  storyBox(el.extra,key,{kind:'mag',btn:final?'Read the season finale issue':'Read Watercraft Weekly',about:'Sends the results and the series points to Claude, which writes the tour magazine.',wait:'Going to press…',by:'Written by Claude from the results.',head:true,
+    facts:()=>({final:!!final,round:L?L.stop+1:1,of:TOUR.length,site:S.name,
+      weekend:!final&&L?L.ord.map(i=>({n:RACERS[i].full,you:i===tour.r,v:L.wk[i],x:'motos '+L.p1[i]+' and '+L.p2[i]})):[],
+      series:seriesRows(),next:!final&&tour.round<MOTOS?SITES[TOUR[tStop()][0]].name:'',hist:tour.hist})});
+}
+// The championship call, under the podium. It asks by itself and shows if it arrives while the ceremony is up.
+function champCall(){
+  const key='champ:'+tour.hist.join('')+':'+tourOrder().join('.'), show=()=>{const s=STORY[key]; if(!cer||!s||!s.text) return; el.cerCall.textContent=s.text.replace(/\s*\n+\s*/g,' '); el.cerCall.hidden=false;};
+  el.cerCall.hidden=true; el.cerCall.textContent='';
+  if(STORY[key]&&STORY[key].text) return show();
+  storyFetch(key,'champ',{series:seriesRows(),hist:tour.hist},show);
 }
 
 function tourOrder(){return RACERS.map((r,i)=>i).sort((a,b)=>tour.pts[b]-tour.pts[a]||a-b);}
@@ -368,6 +458,7 @@ function showWeekend(){
     el.resEyebrow.textContent='Weekend overall · '+S.name;
     board(L.ord.map((i,n)=>({name:RACERS[i].full+(i===tour.r?' (you)':''),craft:'Motos '+L.p1[i]+'\u2011'+L.p2[i],val:L.wk[i]+' pts',extra:'+'+PTS[n]+' series',me:i===tour.r})));
     el.sum.textContent=(pos===1?'You won the weekend.':RACERS[L.ord[0]].full+' won the weekend. You were '+ordinal(pos)+' overall.')+' The top three go up for the award ceremony.';
+    magBox(false);
     el.again.textContent='Award ceremony'; el.swap.hidden=true;
     resAction=()=>startCeremony({eyebrow:'Award ceremony · '+S.name,title:'Weekend overall',
       rows:L.ord.slice(0,3).map(i=>({ri:i,name:RACERS[i].full+(i===tour.r?' (you)':''),val:L.wk[i]+' pts'})),after:showStandings});
@@ -382,8 +473,9 @@ function showStandings(){
   board(order.map(i=>({name:RACERS[i].full+(i===tour.r?' (you)':''),craft:craftOf(i),val:tour.pts[i]+' pts',extra:'',me:i===tour.r})));
   if(done){
     el.sum.textContent=pos===1?'You are the series champion.':RACERS[order[0]].full+' won the series. You finished '+ordinal(pos)+'.';
+    magBox(true);
     el.again.textContent='Championship ceremony'; el.swap.hidden=true;
-    resAction=()=>startCeremony({eyebrow:'Season finale · '+SITES[TOUR[TOUR.length-1][0]].name,title:'Series champions',
+    resAction=()=>startCeremony({champ:true,eyebrow:'Season finale · '+SITES[TOUR[TOUR.length-1][0]].name,title:'Series champions',
       rows:order.slice(0,3).map(i=>({ri:i,name:RACERS[i].full+(i===tour.r?' (you)':''),val:tour.pts[i]+' pts'})),after:backToSetup});
   }else{
     const st=TOUR[tStop()];
@@ -753,6 +845,7 @@ function summary(){
     const d=document.createElement('div'), s=document.createElement('span'); s.textContent=m[0];
     d.append(s,miniBar(m[1],m[2],m[3])); el.ride.appendChild(d);
   }
+  buildPreview();
 }
 function press(sel0,i){
   const opts=el.list.querySelectorAll(sel0);
