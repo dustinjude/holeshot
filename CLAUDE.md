@@ -112,3 +112,11 @@ Chris Macclugage #46, Dustin Charrier #40. Deven, Tory, Andre and GJ have placeh
 such as holeshot.deanstrong.cc). Installing to the home screen and offline play need https. The old claude.ai link,
 https://claude.ai/artifact/CDz3WUr9mC15hBtwL5vFQq, is frozen at the version this project started from and is not
 updated by anything here.
+
+## The booth call
+
+`netlify/functions/race-call.mjs` (served at `/api/race-call`) asks Claude (`claude-haiku-5-5`) for a short announcer
+call from the race facts `boothCall` in shell.js sends after `finish()`. The key is `ANTHROPIC_API_KEY` in Netlify's
+environment, never in the repo. The function takes structured race facts only (no free text), checks the origin
+against holeshotgame.netlify.app and its deploy previews, and rate-limits per address. The racers are real people:
+the prompt keeps the call good-natured and limited to the facts given, so keep it that way if you change it.

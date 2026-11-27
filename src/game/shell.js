@@ -6,7 +6,7 @@ const el={};
 for(const id of ['pos','posN','lap','lapN','time','mph','rpm','revFill','flow','flash','pauseBtn','gapA','gapB',
   'banner','banT','banH','start','result','pause','go','quit','again','swap','place','board','sum','stats','setup','resEyebrow',
   'padL','padR','hud','list','rules','panel','ride','modeS','modeT','tabR','tabC','tabS','tabH','optsMore','optsPause',
-  'lvLabel','resume','restart','toSetup','garage','tabG','modeD','modeI','modeC','podBtn','cer','cerEyebrow','cerTitle','cerList','cerGo']) el[id]=$(id);
+  'lvLabel','resume','restart','toSetup','garage','tabG','modeD','modeI','modeC','podBtn','cer','cerEyebrow','cerTitle','cerList','cerGo','call']) el[id]=$(id);
 const COL={foam:'#f1fbf8',ink:'#06202a',red:'#e4392c',yellow:'#ffc62a'};
 const KEY='holeshot.';
 const RSTAT=[['launch','Launch',.9,1.16],['corner','Corners',.9,1.16],['chopR','Rough',.9,1.18]];
@@ -38,6 +38,7 @@ let skis=[],ais=[],pl=null,parts=[];
 let mode='idle',paused=false,clock=0,countT=0,card=0,finT=0,resAt=0,flashUntil=0;
 let lapSeen=0,lapStart=0,bestLap=0,rescSeen=0,landSeen=0;
 let stat={vmax:0,clean:0,turns:0,off:0,rough:0};
+let callSeq=0;                                               // see boothCall
 let camX=0,camY=0,camA=0,zoom=.6,shake=0,gapT=0,tagA=null,tagB=null,idleS=0,revShown=-1,flowShown=-1,SK=1;
 let QUAL=2,slowT=0,ftAvg=.016,calmT=1,acc=0,padL=false,padR=false,bothT=0,lastSide=0;
 const V={ox:0,oy:0,c:1,s:0,rot:0};
@@ -268,7 +269,7 @@ function place(){
 }
 
 function board(rows){
-  el.board.textContent='';
+  el.board.textContent=''; callSeq++; el.call.hidden=true; el.call.textContent='';
   rows.forEach((r,i)=>{
     const li=document.createElement('li'); if(r.me) li.className='me';
     const a=document.createElement('span'); a.textContent=String(i+1);
@@ -341,11 +342,28 @@ function finish(){
   saveGar();
   const tired=Math.min(gb.w[0],gb.w[1],gb.w[2])<60?' Your ski needs work: see the Garage.':'';
   el.sum.textContent='Your time '+fmt(finT)+'. Prize '+money(prize)+'.'+(record&&best>0?' New personal best here.':'')+tired+tip;
+  if(gmode==='single'||gmode==='tour'||gmode==='items') boothCall({mode:gmode==='items'?'item race':inTour?'tour':'race',site:site.name,reverse:!!rev,
+    rivals:paceName(racePace),place:p,moto:inTour?moto+1:0,round:stopNo,time:fmt(finT),bestLap:bestLap>0?fmt(bestLap):'none',
+    mph:Math.round(stat.vmax*MPH),clean:stat.clean,turns:stat.turns,off:stat.off,
+    field:rows.map(r=>({name:r.name,craft:r.craft,gap:+(r.t-win).toFixed(1)}))});
   el.podBtn.hidden=inTour;
   if(inTour){el.again.textContent=moto?'Weekend overall':'Weekend standings'; resAction=showWeekend; el.swap.hidden=true;}
   else{el.again.textContent='Race again'; resAction=startCountdown; el.swap.hidden=false;}
   resAt=clock+(p===1?4.4:1.1);
   if(p===1) celebrate(true);
+}
+
+// The booth call: a few sentences from an announcer about the race just run, written by Claude through the site's
+// /api/race-call function (netlify/functions/race-call.mjs). Offline, or anywhere that function isn't deployed, the
+// paragraph simply stays hidden. callSeq drops a reply that arrives after the results screen has moved on.
+function boothCall(facts){
+  const n=callSeq;
+  el.call.textContent='From the booth…'; el.call.className='call wait'; el.call.hidden=false;
+  fetch('/api/race-call',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(facts),signal:AbortSignal.timeout(12000)})
+    .then(r=>r.ok?r.json():null).then(d=>{
+      if(n!==callSeq) return;
+      if(d&&d.text){el.call.textContent=d.text; el.call.className='call';} else el.call.hidden=true;
+    }).catch(()=>{if(n===callSeq) el.call.hidden=true;});
 }
 
 function tourOrder(){return RACERS.map((r,i)=>i).sort((a,b)=>tour.pts[b]-tour.pts[a]||a-b);}
