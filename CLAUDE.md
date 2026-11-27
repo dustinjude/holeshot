@@ -4,6 +4,11 @@ Jet ski closed-course racing seen from low behind your ski, built for phones. A 
 framework) that installs to a home screen and plays offline. Owner: Dustin Charrier (Dean Strong Watercraft
 Performance), who plays on an iPhone 18 Pro Max and judges the game there.
 
+## Replies to Dustin
+
+Keep replies short and mobile-friendly: he reads them on his phone. Lead with the answer. Always say what you
+checked and what you couldn't check.
+
 ## Commands
 
 - `npm run build`: assemble `src/` into `dist/` (`node build.mjs`, no dependencies). Always rebuild after editing `src/`.

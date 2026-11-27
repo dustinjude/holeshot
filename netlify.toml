@@ -1,0 +1,13 @@
+# Netlify builds the app from src/ and serves the dist folder.
+[build]
+  command = "npm run build"
+  publish = "dist"
+
+[build.environment]
+  NODE_VERSION = "20"
+
+# The service worker must always be fetched fresh so new versions reach phones.
+[[headers]]
+  for = "/sw.js"
+  [headers.values]
+    Cache-Control = "no-cache"
