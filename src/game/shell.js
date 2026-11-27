@@ -951,6 +951,8 @@ function frame(ts){
   const raw=Math.min(.1,(ts-last)/1000||.016); last=ts;
   // A device that cannot hold the frame rate loses the moving shimmer and some sharpness, a step at a time. This is watched
   // from the setup screen on, so the picture has usually settled before the first race, and the answer is remembered.
+  // Nor while skis are being painted: handing a finished ski to the screen can cost a frame, which says nothing about the device.
+  if(G.skinBusy) calmT=Math.max(calmT,.5);
   if(QUAL>0&&!paused){
     if(calmT>0) calmT-=raw;                      // a course that has just loaded is still painting its tiles: not a fair sample
     else{

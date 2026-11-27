@@ -263,6 +263,9 @@ void main(){vec4 mv=viewMatrix*vec4(position,1.); vA=aA; gl_PointSize=aS*uPx/max
 function g3Clear(grp){
   // a racer's own model is kept for the next race: lift it out before the rest is thrown away
   for(const k in G.mdl||{}){const o=G.mdl[k]; if(o.parent) o.parent.remove(o);}
+  // so is the shape of a painted ski model, which every racer on that model shares
+  for(const b of G.bases||[]) if(b&&b.mesh){for(const m of b.mesh){if(m.parent) m.parent.remove(m); m.material.dispose();} b.mesh=[];}
+  if(G.rider){for(const k of G.rider.used){if(k.root.parent) k.root.parent.remove(k.root); k.mesh.material.dispose(); k.mesh.skeleton.dispose();} G.rider.used=[];}
   grp.traverse(o=>{if(o.geometry&&o.geometry!==G.shGeo&&o.geometry!==G.plGeo) o.geometry.dispose(); if(o.material&&o.material.userData.own) o.material.dispose(); if(o.isInstancedMesh) o.dispose();});
   while(grp.children.length) grp.remove(grp.children[0]);
 }
@@ -700,23 +703,25 @@ function g3Pose(s,sq,near){
   // hips come up off the seat in the air and in rough water, and slide to the inside of a turn; the body leans with them
   // a winner stands up tall to celebrate
   const ch=s.cheer>0?Math.min(1,s.cheer*2,(4-s.cheer)*3):0;
-  R.torso.position.set(RIG.hip[0]+.9*st+.6*ch,RIG.hip[1]+1.6*st+.3*s.rough*sq+1.8*ch,lean*1.6);
+  R.torso.position.set(R.hx+.9*st+.6*ch,R.hy+1.6*st+.3*s.rough*sq+1.8*ch,lean*1.6);
   R.torso.rotation.set(lean*.36*(1-ch),0,.1*st-.07*sq+.4*ch);
   R.head.rotation.set(-lean*.22,-s.steer*.3-lean*.25,.06-.05*st);
-  R.bar.rotation.y=-s.steer*.42;
-  for(const q of R.limbs) q.visible=near;
-  if(!near) return;
+  R.bar.rotation.y=s.skinMesh?0:-s.steer*.42;     // a painted model's bars are part of the hull and do not turn
+  // under a rigged rider the built body is hidden, but its joints are still worked out, near or far, to pose the rig
+  for(const q of R.limbs) q.visible=near&&!R.k3;
+  if(!near&&!R.k3) return;
   R.torso.updateMatrix(); R.bar.updateMatrix();
   const v=G.v, P=(m,x,y,z)=>{v.set(x,y,z).applyMatrix4(m); return [v.x,v.y,v.z];};
   for(let i=0;i<2;i++){
-    const sd=i?1:-1, S=P(R.torso.matrix,RIG.sh[0],RIG.sh[1],sd*RIG.sh[2]), H=P(R.bar.matrix,0,.3,sd*4.15), J=P(R.torso.matrix,RIG.hj[0],RIG.hj[1],sd*RIG.hj[2]);
+    const sd=i?1:-1, S=P(R.torso.matrix,RIG.sh[0],RIG.sh[1],sd*RIG.sh[2]), H=P(R.bar.matrix,0,.3,sd*R.gz), J=P(R.torso.matrix,RIG.hj[0],RIG.hj[1],sd*RIG.hj[2]);
     if(i&&ch>0){
       // the right fist punches the air
       const u=4.6+Math.sin(clock*11)*.9;
       g3IK(S,[S[0]+(H[0]-S[0])*(1-ch)+.8*ch,S[1]+(H[1]-S[1])*(1-ch)+u*ch,S[2]+(H[2]-S[2])*(1-ch)+.7*ch],RIG.ua,RIG.fa,-.3,0,1,R.ua[i],R.fa[i]);
     }else g3IK(S,H,RIG.ua,RIG.fa,-.25,.4,sd*.9,R.ua[i],R.fa[i]);
-    g3IK(J,[-.6,6.3,sd*R.fz],RIG.th,RIG.sn,.8,.55,sd*.3,R.th[i],R.sn[i]);
+    g3IK(J,[R.fx,R.fy,sd*R.fz],RIG.th,RIG.sn,.8,.55,sd*.3,R.th[i],R.sn[i]);
   }
+  if(R.k3){g3RigPose(s); if(R.bkM) R.bk.matrix.multiplyMatrices(R.torso.matrix,R.bkM);}
 }
 function g3Plate(n){
   const c=mk(96,60), x=c.getContext('2d');
@@ -728,7 +733,7 @@ function g3Plate(n){
   const t=new T3.CanvasTexture(c); t.generateMipmaps=false; t.minFilter=T3.LinearFilter; return t;
 }
 function g3Skis(){
-  G.skiG.traverse(o=>{if(o.material&&o.material.map&&o.material.userData.own){o.material.map.dispose();}});
+  G.skiG.traverse(o=>{if(o.material&&o.material.map&&o.material.userData.own&&!o.material.userData.cached){o.material.map.dispose();}});
   g3Clear(G.skiG);
   while(G.shG.children.length) G.shG.remove(G.shG.children[0]);
   if(!G.plGeo){G.plGeo=new T3.PlaneGeometry(1,1); G.backM=new T3.Matrix4().makeBasis(new T3.Vector3(0,0,1),new T3.Vector3(.647,.762,0),new T3.Vector3(-.762,.647,0));}
@@ -736,17 +741,21 @@ function g3Skis(){
     s.g3s=new T3.Mesh(G.shGeo,G.shMat); s.g3s.renderOrder=-3; s.g3s.scale.set(s.sh.L+s.sh.S+8,s.sh.B*2+6,1); G.shG.add(s.g3s);
     const g=new T3.Group(), geo=g3SkiGeo(s), rg=g3RiderGeo(s), bar=g3Bar(s.sh), M=x=>new T3.Mesh(x,G.mat);
     const pm=new T3.MeshBasicMaterial({map:g3Plate(RACERS[s.ri].num)}); pm.userData.own=true;
-    const R=s.rig={torso:M(rg.torso),head:M(rg.head),bar:M(geo.bar),ua:[M(rg.ua),M(rg.ua)],fa:[M(rg.fa),M(rg.fa)],th:[M(rg.th),M(rg.th)],sn:[M(rg.sn),M(rg.sn)],fz:geo.fz};
+    // hx, hy: where the hips sit; fx, fy, fz: where the feet go; gz: how far out the grips are. A painted ski model moves them to fit its own shape.
+    const R=s.rig={torso:M(rg.torso),head:M(rg.head),bar:M(geo.bar),ua:[M(rg.ua),M(rg.ua)],fa:[M(rg.fa),M(rg.fa)],th:[M(rg.th),M(rg.th)],sn:[M(rg.sn),M(rg.sn)],
+      fz:geo.fz,hx:RIG.hip[0],hy:RIG.hip[1],fx:-.6,fy:6.3,gz:4.15};
     R.limbs=R.ua.concat(R.fa,R.th,R.sn);
     R.head.position.set(RIG.neck[0],RIG.neck[1],0); R.torso.add(R.head); R.bar.position.set(bar[0],bar[1],0);
-    g.add(new T3.Mesh(geo.body,G.matSki),new T3.Mesh(geo.trim,G.mat),R.bar,R.torso); for(const q of R.limbs) g.add(q);
-    for(const sd of [-1,1]){const pl8=new T3.Mesh(G.plGeo,pm); pl8.scale.set(4.6,2.9,1); pl8.position.set(geo.plate[0],geo.plate[1],sd*geo.plate[2]); pl8.rotation.set(sd*-.2,sd<0?Math.PI:0,0); g.add(pl8);}
-    {const bk=new T3.Mesh(G.plGeo,pm); bk.scale.set(3.5,2.5,1); bk.setRotationFromMatrix(G.backM); bk.position.set(1.95-2.2*.762,2.65+2.2*.647,0); R.torso.add(bk);}
+    const body=new T3.Mesh(geo.body,G.matSki), fit=new T3.Mesh(geo.trim,G.mat);
+    g.add(body,fit,R.bar,R.torso); for(const q of R.limbs) g.add(q);
+    s.hull3=[body,fit,R.bar];                    // the built ski, hidden when a painted ski model takes its place
+    for(const sd of [-1,1]){const pl8=new T3.Mesh(G.plGeo,pm); pl8.scale.set(4.6,2.9,1); pl8.position.set(geo.plate[0],geo.plate[1],sd*geo.plate[2]); pl8.rotation.set(sd*-.2,sd<0?Math.PI:0,0); g.add(pl8); s.hull3.push(pl8);}
+    {const bk=new T3.Mesh(G.plGeo,pm); bk.scale.set(3.5,2.5,1); bk.setRotationFromMatrix(G.backM); bk.position.set(1.95-2.2*.762,2.65+2.2*.647,0); R.torso.add(bk); R.bk=bk;}
     s.parts=g.children.slice(); s.hullBox=new T3.Box3().setFromBufferAttribute(geo.body.attributes.position);
-    G.skiG.add(g); s.g3=g; s.gp=0; s.gr=0; s.gy=0; s.gl=s.lands; s.ge=0;
+    G.skiG.add(g); s.g3=g; s.gp=0; s.gr=0; s.gy=0; s.gl=s.lands; s.ge=0; s.skin=null; s.skinMesh=null; s.model=false;
   }
   G.ch=pl.h; G.sw=0; G.cy=0;
-  g3UseModels();
+  g3UseModels(); g3UseBases(); g3UseRiders();
 }
 
 function g3Emit(x,y,z,vx,vy,vz,s0,s1,life,a){
@@ -1266,10 +1275,22 @@ function g3CerLabels(){
 // Real skis, rider included, loaded from model files published beside the page. Until one arrives, or if it cannot load, the
 // racer keeps the built ski. The rider in a model is part of the same piece, so it leans with the hull but does not move on its own.
 // Each model is a folder holding model.json (glTF in its JSON form) and its JPEG textures.
-const MODELS={0:'models/vanjae-116/',2:'models/green-black/'};
+// Empty for now: every racer rides a painted ski model with a built rider who moves (see below). The folders are still
+// in models/, and adding {0:'models/vanjae-116/',2:'models/green-black/'} back brings those two fused models back.
+const MODELS={};
+// Images go through plain <img> decoding rather than ImageBitmap, which this loader version gets wrong on some iPhones.
+function g3Load(dir){
+  const L=THREE.GLTFLoader;
+  return fetch(dir+'model.json').then(r=>{if(!r.ok) throw 0; return r.arrayBuffer();}).then(buf=>{
+    const cib=window.createImageBitmap; let p;
+    try{window.createImageBitmap=undefined; p=new Promise((ok,no)=>new L().parse(buf,dir,ok,no));}finally{window.createImageBitmap=cib;}
+    return p;
+  });
+}
 function g3Models(){
   if(G.mdl) return; G.mdl={};
   const L=window.THREE&&THREE.GLTFLoader; if(!L) return;
+  g3Bases();
   // a soft sky above and dark water below for the paint and chrome to reflect
   let env=null;
   try{
@@ -1279,13 +1300,9 @@ function g3Models(){
     const t=new T3.CanvasTexture(c); t.mapping=T3.EquirectangularReflectionMapping;
     const pm=new T3.PMREMGenerator(G.r); env=pm.fromEquirectangular(t).texture; pm.dispose(); t.dispose();
   }catch(e){env=null;}
+  G.env=env;
   for(const k in MODELS){
-    fetch(MODELS[k]+'model.json').then(r=>{if(!r.ok) throw 0; return r.arrayBuffer();}).then(buf=>{
-      // Images go through plain <img> decoding rather than ImageBitmap, which this loader version gets wrong on some iPhones.
-      const cib=window.createImageBitmap; let p;
-      try{window.createImageBitmap=undefined; p=new Promise((ok,no)=>new L().parse(buf,MODELS[k],ok,no));}finally{window.createImageBitmap=cib;}
-      return p;
-    }).then(gl=>{
+    g3Load(MODELS[k]).then(gl=>{
       const o=gl.scene;
       o.traverse(m=>{
         if(!m.isMesh) return;
@@ -1312,5 +1329,431 @@ function g3UseModels(){
     w.scale.setScalar(k); w.position.set((b.max.x+b.min.x)/2,b.min.y+.4,0);
     for(const q of s.parts) q.visible=false;
     s.g3.add(w); s.model=true;
+  }
+}
+
+// ----- painted ski models -----
+// Three ski models, each painted afresh for every racer who rides it: the racer's colours, two raked slashes, number
+// plates and name. A model's paint is stored as scattered patches, so nothing can be drawn on its flat picture. Instead
+// every pixel of the picture is traced back to the spot on the hull it covers, and the new colour is chosen from where that
+// spot is. The built rider rides on top and moves as before. Which model a racer gets goes by their craft.
+const BASES=['models/ski-blue/','models/ski-116/','models/ski-105/'];
+const BASE_OF=[0,1,1,2,2];                     // by craft mark: GP1800, Sea-Doo 325, Sea-Doo 350, FX SVHO, Ultra
+const SKIN_N=1024;
+function g3Bases(){
+  G.bases=[]; G.skinTex={}; G.skinQ=[];
+  BASES.forEach((dir,i)=>g3Load(dir).then(gl=>{
+    let mesh=null; gl.scene.updateMatrixWorld(true); gl.scene.traverse(o=>{if(o.isMesh&&!mesh) mesh=o;});
+    if(mesh&&mesh.material.map) g3Work({bi:i,mesh},false);
+  }).catch(()=>{}));
+  g3Load(RIDER).then(gl=>{G.rider=g3RiderSrc(gl.scene); g3UseRiders();}).catch(()=>{});
+}
+// The slow work (reading a model, painting a ski) goes through one queue, a piece at a time, so it is spread over
+// several frames rather than stalling one. The player's own ski goes to the front.
+function g3Work(job,first){
+  G.skinQ[first?'unshift':'push'](job);
+  if(!G.skinBusy){G.skinBusy=true; setTimeout(g3SkinNext,0);}
+}
+// An attribute as plain floats. Shrunk models store positions, normals and UVs as small integers, which are scaled back here.
+function g3Arr(a){
+  const n=a.count, k=a.itemSize, o=new Float32Array(n*k), arr=a.isInterleavedBufferAttribute?a.data.array:a.array;
+  const sc=!a.normalized?1:arr instanceof Int8Array?1/127:arr instanceof Uint8Array?1/255:arr instanceof Int16Array?1/32767:arr instanceof Uint16Array?1/65535:1;
+  const get=[a.getX,a.getY,a.getZ,a.getW];
+  for(let i=0;i<n;i++) for(let j=0;j<k;j++){const v=get[j].call(a,i)*sc; o[i*k+j]=a.normalized?Math.max(-1,v):v;}
+  return o;
+}
+function g3Base(j){
+  const mesh=j.mesh, g=mesh.geometry, A=g.attributes, pos=g3Arr(A.position), uv=g3Arr(A.uv), idx=g.index?g.index.array:null;
+  const v=new T3.Vector3(), M=mesh.matrixWorld, NM=new T3.Matrix3().getNormalMatrix(M);
+  for(let i=0;i<pos.length;i+=3){v.set(pos[i],pos[i+1],pos[i+2]).applyMatrix4(M); pos[i]=v.x; pos[i+1]=v.y; pos[i+2]=v.z;}
+  let nrm;
+  if(A.normal){nrm=g3Arr(A.normal); for(let i=0;i<nrm.length;i+=3){v.set(nrm[i],nrm[i+1],nrm[i+2]).applyMatrix3(NM).normalize(); nrm[i]=v.x; nrm[i+1]=v.y; nrm[i+2]=v.z;}}
+  else{const t=new T3.BufferGeometry(); t.setAttribute('position',new T3.BufferAttribute(pos,3)); if(idx) t.setIndex(new T3.BufferAttribute(idx,1)); t.computeVertexNormals(); nrm=t.attributes.normal.array;}
+  const N=SKIN_N, c=mk(N,N), x=c.getContext('2d'); x.drawImage(mesh.material.map.image,0,0,N,N);
+  const src=x.getImageData(0,0,N,N).data; c.width=c.height=1;
+  return skinCall({type:'prep',bi:j.bi,src,pos,nrm,uv,idx,N}).then(F=>{
+    // the shape in the ski's own frame: bow along +x, keel at y=0, rider's right along +z, one unit long
+    const geo=new T3.BufferGeometry();
+    geo.setAttribute('position',new T3.BufferAttribute(F.P,3)); geo.setAttribute('normal',new T3.BufferAttribute(F.Q,3)); geo.setAttribute('uv',new T3.BufferAttribute(uv,2));
+    if(idx) geo.setIndex(new T3.BufferAttribute(idx,1));
+    geo.computeBoundingSphere();
+    mesh.geometry.dispose(); mesh.material.map.dispose(); mesh.material.dispose();
+    G.bases[j.bi]={geo,F,mesh:[]}; g3UseBases();
+  });
+}
+// What the paint depends on. The player's ski is painted at full size; rivals, seen from further off, at half.
+function g3SkinKey(s,bi){return bi+'|'+s.hull+'|'+s.trim+'|'+s.num+'|'+s.name+'|'+(s.me?1:0);}
+function g3UseBases(){
+  if(!G.bases) return;
+  const want={};
+  for(const s of skis){
+    if(!s.hull3||!s.g3||s.model) continue;
+    const bi=BASE_OF[s.sh.mark]||0, B=G.bases[bi]; if(!B) continue;
+    const key=g3SkinKey(s,bi); want[key]=1;
+    if(s.skin===key) continue;
+    const tex=G.skinTex[key];
+    if(tex) g3PutBase(s,B,tex,key);
+    else if(!G.skinQ.some(j=>j.key===key)) g3Work({key,bi,s},s.me);
+  }
+  // paint no racer in this race is using is let go once a few have built up
+  const keys=Object.keys(G.skinTex);
+  if(keys.length>16) for(const k of keys) if(!want[k]){G.skinTex[k].dispose(); delete G.skinTex[k];}
+}
+function g3SkinNext(){
+  const j=G.skinQ.shift(); if(!j){G.skinBusy=false; return;}
+  let p;
+  try{p=j.mesh?g3Base(j):j.rider?g3RiderPaint(j):g3PaintJob(j);}catch(e){p=null;}
+  Promise.resolve(p).catch(()=>{}).then(()=>{if(G.skinQ.length) setTimeout(g3SkinNext,16); else G.skinBusy=false;});
+}
+function g3PaintJob(j){
+  const B=G.bases[j.bi], s=j.s, racer={hull:s.hull,trim:s.trim,num:s.num,name:s.name}, gl=skinGlyphs(racer);
+  return skinCall({type:'paint',bi:j.bi,racer,half:!s.me,plate:gl.plate,name:gl.name}).then(r=>{
+    const t=new T3.CanvasTexture(skinFinish(r)); t.flipY=false; t.encoding=T3.LinearEncoding; t.anisotropy=Math.min(4,G.r.capabilities.getMaxAnisotropy());
+    G.skinTex[j.key]=t;
+    for(const o of skis) if(o.hull3&&!o.model&&o.skin!==j.key&&g3SkinKey(o,j.bi)===j.key&&(BASE_OF[o.sh.mark]||0)===j.bi) g3PutBase(o,B,t,j.key);
+  });
+}
+// The heavy part of the work runs in a worker thread, so the game keeps drawing while a model is read or a ski is painted.
+// The worker is made from these same functions; where workers are not available the work runs here instead.
+const SKIN_SRC="'use strict';\n"+[skinFrame,skinHsl,skinBlur,skinPrep,skinRgb,skinPaint,skinRecolour,skinDo].map(String).join('\n')+
+  "\nconst P={};\nonmessage=e=>{const m=e.data; let r=null, err=null; try{r=skinDo(m,P);}catch(x){err=String(x);} postMessage({id:m.id,r,err});};";
+function skinCall(m){
+  if(G.skinW===undefined){
+    G.skinCb={}; G.skinId=0; G.skinP={};
+    try{
+      G.skinW=new Worker(URL.createObjectURL(new Blob([SKIN_SRC],{type:'text/javascript'})));
+      G.skinW.onmessage=e=>{const d=e.data, cb=G.skinCb[d.id]; delete G.skinCb[d.id]; if(cb) d.err?cb[1](d.err):cb[0](d.r);};
+      // if the worker cannot run, everything waiting on it is done here instead
+      G.skinW.onerror=()=>{const w=G.skinCb; G.skinW=null; G.skinCb={}; for(const id in w) w[id][2]();};
+    }catch(e){G.skinW=null;}
+  }
+  const local=()=>skinDo(m,G.skinP);
+  if(!G.skinW) return new Promise(ok=>ok(local()));
+  return new Promise((ok,no)=>{const id=++G.skinId; G.skinCb[id]=[ok,no,()=>{try{ok(local());}catch(e){no(e);}}]; m.id=id; G.skinW.postMessage(m);});
+}
+// What the worker does with a message. A worker keeps each model's prep, so painting only needs the racer's details.
+function skinDo(m,P){
+  if(m.type==='prep'){const p=skinPrep(m.src,m.pos,m.nrm,m.uv,m.idx,m.N); P[m.bi]=p; return p.F;}
+  if(m.type==='paint') return skinPaint(P[m.bi],m.racer,m.half,m.plate,m.name);
+  if(m.type==='rider') return skinRecolour(m.px,m.to);
+  return null;
+}
+function g3PutBase(s,B,tex,key){
+  if(s.skinMesh&&s.skinMesh.parent) s.skinMesh.parent.remove(s.skinMesh);
+  const b=s.hullBox, len=b.max.x-b.min.x, cx=(b.max.x+b.min.x)/2, y0=b.min.y+.4;
+  const mat=new T3.MeshStandardMaterial({map:tex,roughness:.42,metalness:0,envMap:G.env||null,envMapIntensity:.6,side:T3.DoubleSide}); mat.userData.own=true; mat.userData.cached=true;
+  const m=new T3.Mesh(B.geo,mat); m.scale.setScalar(len); m.position.set(cx,y0,0);
+  s.g3.add(m); B.mesh.push(m); s.skinMesh=m; s.skin=key;
+  for(const q of s.hull3) q.visible=false;
+  // the rider sits on this model's seat, keeps their boots in its footwells and their hands on its grips
+  const F=B.F, R=s.rig, X=x=>cx+x*len, Y=y=>y0+y*len;
+  R.hx=X(F.barX-.185); R.hy=Y(F.seatTop)+1.4; R.fx=X(F.barX-.095); R.fy=Y(F.floorY)+1.6; R.fz=F.footZ*len; R.gz=F.gripZ*len;
+  R.bar.position.set(X(F.barX),Y(F.barY)-1,0);
+}
+
+// Puts the model in the ski's own frame: x toward the bow, y up from the keel, z to the rider's right, length 1. Also finds
+// where the rider goes: the seat, the footwells and the grips.
+function skinFrame(pos,nrm){
+  const n=pos.length/3, mn=[1e9,1e9,1e9], mx=[-1e9,-1e9,-1e9];
+  for(let i=0;i<n;i++) for(let k=0;k<3;k++){const v=pos[i*3+k]; if(v<mn[k]) mn[k]=v; if(v>mx[k]) mx[k]=v;}
+  // the long side is the length; models arrive pointing along x or z
+  const ax=mx[0]-mn[0]>=mx[2]-mn[2]?0:2, az=2-ax, len=mx[ax]-mn[ax], ca=(mx[ax]+mn[ax])/2, cz=(mx[az]+mn[az])/2;
+  // the bow is the end that comes to a point: compare how wide the hull is near each end
+  let wa=0, wb=0;
+  for(let i=0;i<n;i++){const u=(pos[i*3+ax]-mn[ax])/len, w=Math.abs(pos[i*3+az]-cz); if(u<.08) wa=Math.max(wa,w); else if(u>.92) wb=Math.max(wb,w);}
+  const dir=wb<wa?1:-1, sz=ax===0?dir:-dir, P=new Float32Array(n*3), Q=new Float32Array(n*3);
+  for(let i=0;i<n;i++){
+    P[i*3]=(pos[i*3+ax]-ca)/len*dir; P[i*3+1]=(pos[i*3+1]-mn[1])/len; P[i*3+2]=(pos[i*3+az]-cz)/len*sz;
+    Q[i*3]=nrm[i*3+ax]*dir; Q[i*3+1]=nrm[i*3+1]; Q[i*3+2]=nrm[i*3+az]*sz;
+  }
+  // the outer width of the hull along its length, so plates go only on the outside skin
+  const zmax=new Float32Array(41);
+  for(let i=0;i<n;i++){const b=Math.max(0,Math.min(40,Math.round((P[i*3]+.5)*40))); zmax[b]=Math.max(zmax[b],Math.abs(P[i*3+2]));}
+  const high=(mx[1]-mn[1])/len, wide=(mx[az]-mn[az])/len, med=a=>{a.sort((p,q)=>p-q); return a[a.length>>1];};
+  // the seat: the highest broad upward-facing surface in the back half, away from the sides
+  const ys=[];
+  for(let i=0;i<n;i++){const x=P[i*3], y=P[i*3+1], z=P[i*3+2]; if(x>-.38&&x<-.02&&Math.abs(z)<wide*.12&&Q[i*3+1]>.8&&y<high*.9) ys.push(y);}
+  ys.sort((a,b)=>a-b); const seatTop=ys[Math.floor(ys.length*.9)]||high*.7;
+  // the bars: the highest points ahead of the seat, and how far out the grips reach
+  let barY=0;
+  for(let i=0;i<n;i++){const x=P[i*3]; if(x>-.15&&x<.3&&P[i*3+1]>barY) barY=P[i*3+1];}
+  const bx=[], gz=[];
+  for(let i=0;i<n;i++){const x=P[i*3], y=P[i*3+1]; if(x>-.15&&x<.3&&y>barY-high*.06){bx.push(x); gz.push(Math.abs(P[i*3+2]));}}
+  const barX=med(bx)||.02, gripZ=Math.max(wide*.25,gz.sort((p,q)=>p-q)[Math.floor(gz.length*.92)]||wide*.3)*.9;
+  // the footwells: flat floor either side of the seat, below it and behind the bars
+  const fy=[], fz=[];
+  for(let i=0;i<n;i++){const x=P[i*3], y=P[i*3+1], z=Math.abs(P[i*3+2]); if(Q[i*3+1]>.8&&x>barX-.22&&x<barX+.03&&z>wide*.12&&z<wide*.42&&y<seatTop-.04&&y>high*.15){fy.push(y); fz.push(z);}}
+  const floorY=fy.length?med(fy):seatTop-high*.3, footZ=fz.length?med(fz):wide*.25;
+  return {P,Q,high,wide,zmax,seatTop,seatY:seatTop-high*.1,seatX0:-.42,seatX1:.06,barX,barY,gripZ,floorY,footZ};
+}
+function skinHsl(r,g,b){
+  r/=255; g/=255; b/=255; const mx=Math.max(r,g,b), mn=Math.min(r,g,b), l=(mx+mn)/2; let h=0, s=0;
+  if(mx!==mn){const d=mx-mn; s=l>.5?d/(2-mx-mn):d/(mx+mn); h=(mx===r?(g-b)/d+(g<b?6:0):mx===g?(b-r)/d+2:(r-g)/d+4)*60;}
+  return [h,s,l];
+}
+// the mean of a over a square of half-width r around each pixel
+function skinBlur(a,N,r){
+  const S=new Float64Array((N+1)*(N+1)), o=new Float32Array(N*N);
+  for(let y=0;y<N;y++){let row=0; for(let x=0;x<N;x++){row+=a[y*N+x]; S[(y+1)*(N+1)+x+1]=S[y*(N+1)+x+1]+row;}}
+  for(let y=0;y<N;y++){const y0=Math.max(0,y-r), y1=Math.min(N,y+r+1);
+    for(let x=0;x<N;x++){const x0=Math.max(0,x-r), x1=Math.min(N,x+r+1);
+      o[y*N+x]=(S[y1*(N+1)+x1]-S[y0*(N+1)+x1]-S[y1*(N+1)+x0]+S[y0*(N+1)+x0])/((y1-y0)*(x1-x0));}}
+  return o;
+}
+// The work shared by every racer on a model: where each pixel sits on the hull, and what the original paint was there.
+// kind: 0 not used, 1 a dark fitting, 2 paint, 3 old lettering on a fitting, 5 a fitting by its place (seat, hull bottom, bars).
+function skinPrep(src,pos,nrm,uv,idx,N){
+  const F=skinFrame(pos,nrm), P=F.P, Q=F.Q, pm=new Float32Array(N*N*3), nm=new Float32Array(N*N*3), used=new Uint8Array(N*N);
+  const tris=idx?idx.length/3:pos.length/9;
+  for(let t=0;t<tris;t++){
+    const a=idx?idx[t*3]:t*3, b=idx?idx[t*3+1]:t*3+1, c=idx?idx[t*3+2]:t*3+2;
+    const u0=uv[a*2]*N, v0=uv[a*2+1]*N, u1=uv[b*2]*N, v1=uv[b*2+1]*N, u2=uv[c*2]*N, v2=uv[c*2+1]*N;
+    const area=(u1-u0)*(v2-v0)-(u2-u0)*(v1-v0); if(Math.abs(area)<1e-9) continue;
+    const x0=Math.max(0,Math.floor(Math.min(u0,u1,u2)-1)), x1=Math.min(N-1,Math.ceil(Math.max(u0,u1,u2)+1));
+    const y0=Math.max(0,Math.floor(Math.min(v0,v1,v2)-1)), y1=Math.min(N-1,Math.ceil(Math.max(v0,v1,v2)+1));
+    // a pixel just outside the triangle is still filled, at lower priority, so the seams between patches are covered
+    const slack=1.2*Math.max(Math.hypot(u1-u0,v1-v0),Math.hypot(u2-u1,v2-v1),Math.hypot(u0-u2,v0-v2))/Math.abs(area);
+    for(let y=y0;y<=y1;y++) for(let x=x0;x<=x1;x++){
+      const px=x+.5, py=y+.5;
+      let w0=((u1-px)*(v2-py)-(u2-px)*(v1-py))/area, w1=((u2-px)*(v0-py)-(u0-px)*(v2-py))/area, w2=1-w0-w1;
+      const m=Math.min(w0,w1,w2), k=y*N+x, rank=m>=0?2:m>=-slack?1:0;
+      if(rank<=used[k]) continue; used[k]=rank;
+      if(rank===1){w0=Math.max(0,w0); w1=Math.max(0,w1); w2=Math.max(0,w2); const s=w0+w1+w2; w0/=s; w1/=s; w2/=s;}
+      for(let j=0;j<3;j++){pm[k*3+j]=P[a*3+j]*w0+P[b*3+j]*w1+P[c*3+j]*w2; nm[k*3+j]=Q[a*3+j]*w0+Q[b*3+j]*w1+Q[c*3+j]*w2;}
+    }
+  }
+  const kind=new Uint8Array(N*N), lit=new Float32Array(N*N), isK=new Float32Array(N*N), isB=new Float32Array(N*N), isU=new Float32Array(N*N);
+  // Each pixel goes in a colour class: dark (0), one of twelve hues (1-12) or white (13). The commonest class is the
+  // model's main paint, whose light and dark show the shading baked into the model.
+  const cls=new Uint8Array(N*N), count=new Float64Array(14); let nUsed=0;
+  for(let k=0;k<N*N;k++){
+    if(!used[k]) continue; isU[k]=1; nUsed++;
+    const hsl=skinHsl(src[k*4],src[k*4+1],src[k*4+2]), h=hsl[0], s=hsl[1], l=hsl[2]; lit[k]=l;
+    const c=l<.2||(s<.22&&l<.62)?0:s>=.3?1+Math.floor(h/30)%12:l>.7?13:0;
+    cls[k]=c; count[c]++; if(c===0) isK[k]=1;
+  }
+  // a mostly black ski has black bodywork, so dark no longer marks a fitting there
+  const darkBody=count[0]/nUsed>.5;
+  let main=darkBody?0:1; if(!darkBody) for(let c=1;c<14;c++) if(count[c]>count[main]) main=c;
+  const ls=[]; for(let k=0;k<N*N;k+=7) if(isU[k]&&cls[k]===main) ls.push(lit[k]);
+  for(let k=0;k<N*N;k++) if(isU[k]&&cls[k]===main) isB[k]=1;
+  ls.sort((a,b)=>a-b); const mid=ls[ls.length>>1]||.4, r=Math.max(2,Math.round(N/100)), rL=Math.round(N/25);
+  const sh=new Float32Array(N*N), shB=new Float32Array(N*N);
+  for(let k=0;k<N*N;k++) if(isB[k]) shB[k]=lit[k]/mid;
+  // shading is also taken from a wide neighbourhood, so old logos printed in the main colour hardly show through
+  const sb=skinBlur(shB,N,r), bf=skinBlur(isB,N,r), sbL=skinBlur(shB,N,rL), bfL=skinBlur(isB,N,rL);
+  // The texture is cut into patches, one piece of the ski each. A patch with any colour in it is bodywork and is painted
+  // over whole, panels and logos included. A patch that is mostly dark with no colour is a fitting (seat, mats, bars,
+  // bumpers) and keeps its light and dark, with any lettering on it covered.
+  const lab=new Int32Array(N*N).fill(-1), stats=[], stack=[];
+  for(let k0=0;k0<N*N;k0++){
+    if(used[k0]!==2||lab[k0]>=0) continue;
+    const id=stats.length, st={n:0,dark:0,paint:0}; stats.push(st); lab[k0]=id; stack.push(k0);
+    while(stack.length){
+      const k=stack.pop(); st.n++; st.dark+=isK[k]; st.paint+=cls[k]>=1&&cls[k]<=12?1:0; const x=k%N, y=(k-x)/N;
+      if(x>0&&used[k-1]===2&&lab[k-1]<0){lab[k-1]=id; stack.push(k-1);}
+      if(x<N-1&&used[k+1]===2&&lab[k+1]<0){lab[k+1]=id; stack.push(k+1);}
+      if(y>0&&used[k-N]===2&&lab[k-N]<0){lab[k-N]=id; stack.push(k-N);}
+      if(y<N-1&&used[k+N]===2&&lab[k+N]<0){lab[k+N]=id; stack.push(k+N);}
+    }
+  }
+  // the thin border filled around each patch takes the label of the patch beside it
+  for(let pass=0;pass<3;pass++) for(let k=0;k<N*N;k++){
+    if(!used[k]||lab[k]>=0) continue; const x=k%N;
+    for(const j of [x>0?k-1:-1,x<N-1?k+1:-1,k-N,k+N]) if(j>=0&&j<N*N&&lab[j]>=0){lab[k]=lab[j]; break;}
+  }
+  const fit=stats.map(st=>!darkBody&&st.paint/st.n<.04&&st.dark/st.n>.45);
+  for(let k=0;k<N*N;k++){
+    if(!isU[k]) continue;
+    const id=lab[k];
+    kind[k]=id<0||!fit[id]?2:isK[k]?1:3;
+    // places on the shape that are fittings whatever colour they were: the seat, the hull bottom, the bars
+    const X=pm[k*3], Y=pm[k*3+1], Z=pm[k*3+2], ny=nm[k*3+1]/(Math.hypot(nm[k*3],nm[k*3+1],nm[k*3+2])||1);
+    if(Y>F.seatY&&X>F.seatX0&&X<F.seatX1&&Math.abs(Z)<F.wide*.17&&ny>.35) kind[k]=5;
+    else if(ny<-.45||Y<F.high*.07||Y>F.high*.9) kind[k]=5;
+    // how light or dark the original paint was here against its usual tone: the shading baked into the model, kept under the new paint
+    const near=bf[k]>.02?sb[k]/bf[k]:1, far=bfL[k]>.01?sbL[k]/bfL[k]:1;
+    sh[k]=Math.min(1.2,Math.max(.7,isB[k]?.55*lit[k]/mid+.3*near+.15*far:.7*near+.3*far));
+  }
+  const pq=new Int16Array(N*N*3), nq=new Int8Array(N*N*3), shq=new Uint8Array(N*N), lq=new Uint8Array(N*N);
+  for(let i=0;i<N*N*3;i++){pq[i]=Math.round(pm[i]*30000); nq[i]=Math.round(Math.max(-1,Math.min(1,nm[i]))*127);}
+  for(let k=0;k<N*N;k++){shq[k]=Math.round(sh[k]*200); lq[k]=Math.round(Math.min(1,lit[k])*255);}
+  return {N,pm:pq,nm:nq,kind,sh:shq,lit:lq,high:F.high,zmax:F.zmax,F};
+}
+function skinRgb(hex){const v=parseInt(hex.slice(1),16); return [v>>16&255,v>>8&255,v&255];}
+function skinText(w,h,draw){const c=mk(w,h), x=c.getContext('2d'); draw(x,w,h); return x.getImageData(0,0,w,h).data;}
+// the racer's number and name drawn once, as plain pixels for the painter to sample
+function skinGlyphs(racer){
+  const FONT="italic 800 112px 'Barlow Condensed','Arial Narrow',Arial,sans-serif";
+  const plate=skinText(256,128,(x,w,h)=>{
+    x.fillStyle='#fff'; x.fillRect(0,0,w,h); x.fillStyle='#000'; x.font=FONT; x.textAlign='center'; x.textBaseline='middle';
+    const tw=x.measureText(String(racer.num)).width, k=Math.min(1,(w-36)/Math.max(1,tw)); x.translate(w/2,h/2+6); x.scale(k,1); x.fillText(String(racer.num),0,0);});
+  const name=skinText(512,64,(x,w,h)=>{
+    x.fillStyle='#000'; x.fillRect(0,0,w,h); x.fillStyle='#fff'; x.font=FONT.replace('112px','58px'); x.textAlign='center'; x.textBaseline='middle';
+    const t=racer.name.toUpperCase(), tw=x.measureText(t).width, k=Math.min(1,(w-16)/Math.max(1,tw)); x.translate(w/2,h/2+3); x.scale(k,1); x.fillText(t,0,0);});
+  return {plate,name};
+}
+// the painted pixels onto a canvas; pixels no part of the hull uses take the colour beside them, so no dark line shows
+// where patches meet at a distance
+function skinFinish(r){
+  const W=r.W, out=mk(W,W), ox=out.getContext('2d'), im=ox.createImageData(W,W); im.data.set(r.d); ox.putImageData(im,0,0);
+  const pad=mk(W,W), px=pad.getContext('2d');
+  px.fillStyle='rgb('+r.tail.map(Math.round).join(',')+')'; px.fillRect(0,0,W,W);
+  for(const q of [[-2,0],[2,0],[0,-2],[0,2],[-1,-1],[1,1],[-1,1],[1,-1]]) px.drawImage(out,q[0],q[1]);
+  px.drawImage(out,0,0); out.width=out.height=1;
+  return pad;
+}
+// One racer's paint: hull colour with a darker tail, two raked slashes and a crown stripe in the trim colour, a number
+// plate on each side and on the hood, and the name along the tail. half paints at half size, for skis seen from further off.
+function skinPaint(prep,racer,half,plate,name){
+  const N=prep.N, pm=prep.pm, nm=prep.nm, kind=prep.kind, sh=prep.sh, lit=prep.lit, high=prep.high, zmax=prep.zmax;
+  const st=half?2:1, W=N/st, d=new Uint8ClampedArray(W*W*4);
+  const hull=skinRgb(racer.hull), trim=skinRgb(racer.trim), lumH=(hull[0]*.3+hull[1]*.59+hull[2]*.11)/255;
+  const tail=hull.map(v=>v*(lumH>.75?.8:.62)), ink=[11,16,19], paper=[253,253,248], PW=256, PH=128, NW=512, NH=64;
+  // a rounded plate: u and v run 0..1 across it; -1 outside, else how much ink the number puts there
+  const onPlate=(u,v)=>{if(u<0||u>1||v<0||v>1) return -1; const ex=Math.max(0,Math.abs(u-.5)*2-.82)/.18, ey=Math.max(0,Math.abs(v-.5)*2-.64)/.36; if(ex*ex+ey*ey>1) return -1;
+    return 1-plate[(Math.min(PH-1,v*PH|0)*PW+Math.min(PW-1,u*PW|0))*4]/255;};
+  for(let yy=0;yy<W;yy++) for(let xx=0;xx<W;xx++){
+    const k=yy*st*N+xx*st, o=(yy*W+xx)*4, kd=kind[k]; if(!kd) continue;
+    const X=pm[k*3]/30000, Y=pm[k*3+1]/30000, Z=pm[k*3+2]/30000, nx=nm[k*3], ny=nm[k*3+1], nz=nm[k*3+2], nl=Math.hypot(nx,ny,nz)||1;
+    const top=ny/nl, side=nz/nl, l=lit[k]/255; let c=null, s=sh[k]/200;
+    // number plates go over paint and fittings alike, so they are always whole; side plates only on the outer skin,
+    // so they are not printed again on the footwell walls
+    let ink0=-1;
+    const outer=Math.abs(Z)>zmax[Math.max(0,Math.min(40,Math.round((X+.5)*40)))]*.55;
+    if(Math.abs(side)>.35&&side*Z>0&&outer) ink0=onPlate(((X-.12)/.062*(side>0?1:-1)+1)/2,1-((Y-high*.36)/(high*.088)+1)/2);
+    if(ink0<0&&top>.5&&kd!==5) ink0=onPlate((Z/.062+1)/2,1-((X-.24)/.034+1)/2);
+    if(ink0>=0){c=paper.map((v,j)=>v+(ink[j]-v)*ink0); s=.85+.15*Math.min(1,s);}
+    else if(kd===1||kd===5){
+      // fittings keep their light and dark but lose any colour, so no old logo or trim colour is left on them
+      const g=kd===5?20+l*90:14+l*140; d[o]=g; d[o+1]=g*1.04; d[o+2]=g*1.1; d[o+3]=255; continue;}
+    else if(kd===3){d[o]=16; d[o+1]=20; d[o+2]=23; d[o+3]=255; continue;}
+    else{
+      // the slashes rake forward as they rise; ahead of them the hull colour, behind them its darker tone
+      const q=X-(Y-.14)*1.15+.06;
+      c=q>.1?hull:q>.075?trim:q>.055?hull:q>-.03?trim:tail;
+      if(top>.6&&Math.abs(Z)<.016&&X>-.02) c=trim;                                             // crown stripe along the hood
+      if(Math.abs(side)>.45&&Y>.095&&Y<.13&&X>-.44&&X<-.16){                                   // name along the tail
+        const u=((X+.30)/.14*(side>0?1:-1)+1)/2, v=1-(Y-.095)/.035;
+        if(u>=0&&u<=1&&name[(Math.min(NH-1,v*NH|0)*NW+Math.min(NW-1,u*NW|0))*4]>110) c=trim;
+      }
+    }
+    for(let j=0;j<3;j++) d[o+j]=s<=1?c[j]*s:c[j]+(255-c[j])*(s-1)*.6;
+    d[o+3]=255;
+  }
+  return {d,W,tail};
+}
+
+// ----- the rigged rider -----
+// A rider model with a skeleton (Mixamo-style bone names, each bone pointing along its own +y toward its child). It takes
+// the place of the built rider's body: every frame the built rider's joints are still worked out (hips on the seat, hands on
+// the grips, boots in the footwells, lean, standing up, the fist in the air), and the rig's bones are turned to match,
+// using the rig's own bone lengths. Each racer gets their own copy of the skeleton and their colours on the gear.
+const RIDER='models/rider-fly/', K3BACK=.6;
+const RIG3=['Hips','Spine02','Spine01','Spine','neck','Head','LeftArm','LeftForeArm','LeftHand','RightArm','RightForeArm','RightHand','LeftUpLeg','LeftLeg','LeftFoot','RightUpLeg','RightLeg','RightFoot'];
+function g3RiderSrc(scene){
+  let mesh=null; scene.traverse(o=>{if(o.isSkinnedMesh&&!mesh) mesh=o;});
+  if(!mesh||!mesh.material.map) return null;
+  // measured in the rest pose, with the model at its own size: where the hips are and how long each limb is
+  scene.updateMatrixWorld(true);
+  const W={}; scene.traverse(o=>{if(o.isBone) W[o.name]=new T3.Vector3().setFromMatrixPosition(o.matrixWorld);});
+  if(RIG3.some(n=>!W[n])) return null;
+  const d=(a,b)=>W[a].distanceTo(W[b]);
+  const leg=d('LeftUpLeg','LeftLeg')+d('LeftLeg','LeftFoot'), k=(RIG.th+RIG.sn)/leg;   // sized so its legs match the built rider's
+  const M=mesh.material; for(const t of [M.map,M.emissiveMap]) if(t) t.encoding=T3.LinearEncoding;
+  return {scene,mesh,k,hips:W.Hips.clone(),ua:d('LeftArm','LeftForeArm')*k,fa:d('LeftForeArm','LeftHand')*k,th:d('LeftUpLeg','LeftLeg')*k,sn:d('LeftLeg','LeftFoot')*k,
+    tex:{},used:[]};
+}
+// A copy with its own bones, bound the way the original is, so each racer can be posed on their own.
+function g3RiderCopy(src){
+  const root=new T3.Group(), sc=src.scene.clone(true); root.add(sc);
+  const bones={}; let mesh=null;
+  sc.traverse(o=>{if(o.isBone) bones[o.name]=o; if(o.isSkinnedMesh) mesh=o;});
+  const sk=src.mesh.skeleton, list=sk.bones.map(b=>bones[b.name]);
+  mesh.bind(new T3.Skeleton(list,sk.boneInverses.map(m=>m.clone())),src.mesh.bindMatrix);
+  mesh.frustumCulled=false;                  // posed far from how it was bound, so its bounds would be wrong
+  const rest={}; for(const n in bones) rest[n]=bones[n].quaternion.clone();
+  root.rotation.y=Math.PI/2;                 // the model faces +z, the ski points along +x
+  root.scale.setScalar(src.k);
+  return {root,mesh,bones,rest};
+}
+function g3RiderKey(s){return s.hull+'|'+s.trim;}
+function g3UseRiders(){
+  const src=G.rider; if(!src) return;
+  for(const s of skis){
+    const R=s.rig; if(!R||!s.g3||s.model) continue;
+    if(!R.k3){
+      const K=g3RiderCopy(src); R.k3=K; src.used.push(K);
+      K.mesh.material=src.mesh.material.clone(); K.mesh.material.skinning=true;
+      if(G.env){K.mesh.material.envMap=G.env; K.mesh.material.envMapIntensity=.6;}
+      s.g3.add(K.root); R.torso.visible=false; for(const q of R.limbs) q.visible=false;
+      // the back number stays: it moves off the hidden built torso and follows it from outside, a little further back to
+      // sit on the rigged rider's vest
+      if(R.bk){R.bk.position.x-=K3BACK; R.bk.updateMatrix(); R.bkM=R.bk.matrix.clone(); R.torso.remove(R.bk); s.g3.add(R.bk); R.bk.matrixAutoUpdate=false;}
+    }
+    const key=g3RiderKey(s), t=src.tex[key];
+    if(t){if(R.k3.mesh.material.map!==t){R.k3.mesh.material.map=t; R.k3.mesh.material.needsUpdate=true;}}
+    else if(!G.skinQ.some(j=>j.rider&&j.key===key)) g3Work({rider:true,key,hull:s.hull,trim:s.trim},s.me);
+  }
+}
+// The racer's colours on the gear.
+function g3RiderPaint(j){
+  const src=G.rider, o=src.mesh.material.map, img=o.image;
+  if(!src.px){const N=Math.min(1024,img.width||1024), c=mk(N,N), x=c.getContext('2d'); x.drawImage(img,0,0,N,N); src.px=x.getImageData(0,0,N,N).data; src.N=N; c.width=c.height=1;}
+  return skinCall({type:'rider',px:src.px,to:skinRgb(j.hull)}).then(p=>{
+    const N=src.N, c=mk(N,N), x=c.getContext('2d'), im=x.createImageData(N,N); im.data.set(p); x.putImageData(im,0,0);
+    const t=new T3.CanvasTexture(c); t.flipY=o.flipY; t.encoding=T3.LinearEncoding; t.wrapS=o.wrapS; t.wrapT=o.wrapT;
+    src.tex[j.key]=t; g3UseRiders();
+  });
+}
+// The model's own bright orange becomes the racer's hull colour, keeping its light and dark.
+function skinRecolour(px,to){
+  const p=new Uint8ClampedArray(px);
+  for(let i=0;i<p.length;i+=4){
+    const hsl=skinHsl(p[i],p[i+1],p[i+2]), h=hsl[0], s=hsl[1], l=hsl[2];
+    if(h>14&&h<48&&s>.55&&l>.25){const f=Math.min(1.6,l/.5); for(let q=0;q<3;q++) p[i+q]=Math.min(255,to[q]*f);}
+  }
+  return p;
+}
+// turns bone b so its +y points along d, both in the ski's own space
+const RQ={a:null};
+function g3Aim(K,b,d,stop){
+  if(!RQ.a) RQ.a={p:new T3.Quaternion(),w:new T3.Quaternion(),r:new T3.Quaternion(),y:new T3.Vector3(),c:new T3.Vector3()};
+  const Q=RQ.a; Q.p.identity();
+  for(let o=b.parent;o&&o!==stop;o=o.parent) Q.p.premultiply(o.quaternion);   // the parent's turn relative to the ski
+  Q.w.copy(Q.p).multiply(b.quaternion);
+  Q.c.copy(Q.y.set(0,1,0)).applyQuaternion(Q.w);
+  Q.r.setFromUnitVectors(Q.c,d.normalize()); Q.w.premultiply(Q.r);
+  b.quaternion.copy(Q.p.invert()).multiply(Q.w);
+}
+// two bones from a to b with lengths l1, l2, bending toward the pole; returns the middle joint
+function g3Knee(a,b,l1,l2,px,py,pz){
+  let dx=b.x-a.x, dy=b.y-a.y, dz=b.z-a.z; const d=Math.hypot(dx,dy,dz)||1e-6, m=Math.min(d,l1+l2-.02); dx/=d; dy/=d; dz/=d;
+  const al=(l1*l1-l2*l2+m*m)/(2*m), h=Math.sqrt(Math.max(0,l1*l1-al*al)), k=px*dx+py*dy+pz*dz;
+  px-=k*dx; py-=k*dy; pz-=k*dz; const pl=Math.hypot(px,py,pz)||1;
+  return new T3.Vector3(a.x+dx*al+px/pl*h,a.y+dy*al+py/pl*h,a.z+dz*al+pz/pl*h);
+}
+const SPINE3=[[0,0],[1.05,1.55],[2.2,3],[3.3,4.25],[4.25,5.15],[4.95,6.05]];
+function g3RigPose(s){
+  const R=s.rig, K=R.k3, src=G.rider, B=K.bones, g=s.g3, V=T3.Vector3;
+  for(const n in B) B[n].quaternion.copy(K.rest[n]);
+  // hips where the built rider's hips are
+  const tq=R.torso.quaternion, hip=new V(0,-.35,0).applyQuaternion(tq).add(R.torso.position);
+  K.root.position.copy(src.hips).multiplyScalar(src.k).applyAxisAngle(G.Y,Math.PI/2).negate().add(hip);
+  // the back follows the built rider's spine, bend and lean included; the head turns with the built head
+  const dir=(a,b)=>new V(b[0]-a[0],b[1]-a[1],0).applyQuaternion(tq);
+  const sp=['Hips','Spine02','Spine01','Spine','neck'];
+  for(let i=0;i<sp.length;i++) g3Aim(K,B[sp[i]],dir(SPINE3[i],SPINE3[i+1]),g);
+  g3Aim(K,B.Head,new V(0,1,0).applyQuaternion(R.head.quaternion).applyQuaternion(tq),g);
+  // arms and legs: from the rig's own shoulders and hips to the built rider's hands and ankles
+  K.root.updateMatrixWorld(true);
+  const gi=new T3.Matrix4().copy(g.matrixWorld).invert(), at=n=>new V().setFromMatrixPosition(B[n].matrixWorld).applyMatrix4(gi);
+  const end=(q,len)=>new V(0,len,0).applyQuaternion(q.quaternion).add(q.position);
+  for(let i=0;i<2;i++){
+    const sd=i?1:-1, side=i?'Right':'Left';
+    const S=at(side+'Arm'), H=end(R.fa[i],RIG.fa), E=g3Knee(S,H,src.ua,src.fa,-.25,.4,sd*.9);
+    g3Aim(K,B[side+'Arm'],E.clone().sub(S),g); g3Aim(K,B[side+'ForeArm'],H.clone().sub(E),g);
+    const J=at(side+'UpLeg'), A=end(R.sn[i],RIG.sn), N=g3Knee(J,A,src.th,src.sn,.8,.55,sd*.3);
+    g3Aim(K,B[side+'UpLeg'],N.clone().sub(J),g); g3Aim(K,B[side+'Leg'],A.clone().sub(N),g);
   }
 }

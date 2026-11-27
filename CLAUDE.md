@@ -36,7 +36,7 @@ checked and what you couldn't check.
     (`WAVE_GLSL` must stay in step with `waveH` in core). `g3Site` builds each course's scenery from `PAL3`
     palettes; `g3Skis` builds hulls (`g3SkiGeo`) and jointed riders (`g3RiderGeo`, `RIG`, `g3IK`, `g3Pose`);
     `g3Emit` spray; `render3` camera and frame; fireworks and podium (`g3Fw*`, `g3Cer*`); racers' own models
-    (`MODELS`, `g3Models`, `g3UseModels`).
+    (`MODELS`, `g3Models`, `g3UseModels`); painted ski models (`BASES`, `g3Bases`, `g3UseBases`, `skinPrep`, `skinPaint`).
   - `arcade.js`: the item race and the crate run. `party.js`: the win celebration and the award ceremony.
 - `src/index.html` (markup, `/*@css*/` placeholder), `src/style.css`, `src/sw.js` (offline cache; the build fills
   in its file list and a version hash, so never bump it by hand), `src/manifest.webmanifest`, `src/icons/`.
@@ -72,11 +72,24 @@ Chris Macclugage #46, Dustin Charrier #40. Deven, Tory, Andre and GJ have placeh
 
 ## Models
 
-- `MODELS` in r3.js maps a racer's index to a folder: Vanjae (0) has `models/vanjae-116/`, his real #116 ski with
-  rider. Deven (2) has `models/green-black/` as a stand-in until Dustin says whose ski it is.
-- Each model is one mesh, ski and rider fused, no skeleton. So for a modelled ski `g3Pose` is skipped: the rider tilts
-  with the hull but doesn't lean, stand or celebrate, and the podium still uses built riders. Next step Dustin is
-  working toward: a model per racer, and a separate rigged rider (Mixamo) so the body can move.
+- Painted skis (`BASES` in r3.js): three ski models without riders, `models/ski-blue/`, `ski-116/` and `ski-105/`,
+  picked by craft (`BASE_OF`, by `sh.mark`). Each racer's ski is repainted on the phone as a race loads: hull and
+  trim colours, two raked slashes, number plates on the sides and hood, the name on the tail. The paint is laid out on
+  the 3D shape (`skinPrep` traces every texture pixel back to its spot on the hull), because the models' textures
+  are scattered patches. Fittings (seat, mats, bars, hull bottom) keep their light and dark but lose colour, which also
+  removes the models' old logos. The built rider rides on top and moves; `g3PutBase` fits the hips, feet and grips to
+  the model. The player's ski paints at 1024 px, rivals at 512, one job at a time through `g3Work`. The heavy work
+  (`skinPrep`, `skinPaint`, `skinRecolour`) runs in a Web Worker built from those same functions (`SKIN_SRC`,
+  `skinCall`), so they must stay self-contained: no `mk`, `T3`, `G` or DOM inside them. Without workers it runs inline.
+  The frame-rate governor in `frame()` doesn't sample while `G.skinBusy`, so painting can't lower the saved quality.
+- `MODELS` (fused ski-and-rider models, no skeleton, rider can't move) is empty now. `models/vanjae-116/` (his real
+  #116 ski) and `models/green-black/` are kept and still ship; `{0:'models/vanjae-116/',2:'models/green-black/'}`
+  brings them back.
+- Rigged rider (`RIDER`, `models/rider-fly/`, from `models-source/rider-fly.glb`): replaces the built rider's body
+  on every ski. `g3Pose` still works out the built rider's joints (hidden), and `g3RigPose` turns the rig's bones to
+  match with `g3Aim`, using the rig's own bone lengths. Each racer gets a copy of the skeleton (`g3RiderCopy`) and their
+  hull colour on the gear (the model's orange is swapped). Bone names must be the Mixamo-style set in `RIG3`. The
+  podium and award ceremony still use built riders, and the back number plate is gone with the built body.
 - Budget per ski with rider: 40,000 triangles or fewer, 1024 px textures, about 2 MB after `npm run model`.
 - Why `model.json` plus JPEGs instead of `.glb`: the old claude.ai host wouldn't serve `.glb`. Any normal host would,
   but the folder form works everywhere, so it stays.
