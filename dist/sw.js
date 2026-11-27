@@ -1,6 +1,6 @@
 // Offline support. build.mjs fills in VERSION (a hash of the build) and FILES (everything in dist/), so an installed
 // copy updates itself when a new build is published. Fonts are cached the first time they load.
-const VERSION = "holeshot-09a6b63d9e";
+const VERSION = "holeshot-3fb0c347ba";
 const FILES = ["./","icons/apple-touch-icon.png","icons/icon-192.png","icons/icon-512.png","icons/icon-maskable-512.png","index.html","js/GLTFLoader.js","js/game.js","js/three.min.js","manifest.webmanifest","models/green-black/model.json","models/green-black/tex0.jpg","models/green-black/tex1.jpg","models/green-black/tex2.jpg","models/vanjae-116/model.json","models/vanjae-116/tex0.jpg","models/vanjae-116/tex1.jpg","models/vanjae-116/tex2.jpg"];
 self.addEventListener('install', e => {
   e.waitUntil(caches.open(VERSION).then(c => c.addAll(FILES)).then(() => self.skipWaiting()));

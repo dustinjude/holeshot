@@ -42,3 +42,9 @@ which adds the API key and asks Claude.
 - Set `ANTHROPIC_API_KEY` in Netlify under Site configuration > Environment variables. Never put the key in the repo.
 - The function only accepts race facts, only from this site's own pages, and only a few calls a minute per player.
 - Offline, or on a host without the function (Netlify Drop, `npm start`), the call simply doesn't appear.
+
+## More from Claude
+
+The same key also powers a race preview on the start screen, a crew chief in the garage, Watercraft Weekly after each
+tour weekend and at the season finale, and the announcer's call at the championship ceremony
+(`netlify/functions/story.mjs`, at `/api/story`).
