@@ -79,6 +79,9 @@ body.live.pads .pad{display:grid}
 #start h1{font-size:40px}
 .plate p{margin:0;font-size:15px;line-height:1.45}
 .fine{font-size:13px;line-height:1.4;color:var(--muted)}
+/* the booth call on the results screen: written by Claude from the race that just finished */
+.call{margin:0;padding:8px 10px;border-left:3px solid var(--yellow);background:rgba(var(--ink-rgb),.05);font:italic 400 14.5px/1.4 var(--body)}
+.call.wait{color:var(--muted)}
 
 .tabs{display:grid;grid-template-columns:repeat(4,1fr);border:2px solid var(--ink);border-radius:4px;overflow:hidden;flex:none}
 .tabs.two{grid-template-columns:repeat(2,1fr)}
