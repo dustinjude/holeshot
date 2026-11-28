@@ -32,7 +32,7 @@ const UP={bed:["A real bed",350,"better sleep"],fridge:["A fridge that works",25
 const $=id=>root.getElementById(id),cl=(v,a=0,b=100)=>Math.max(a,Math.min(b,v)),r=()=>Math.random(),$$=n=>"$"+Math.round(n).toLocaleString(),pick=a=>a[Math.floor(r()*a.length)];
 const mkp=()=>({b:5,t:50,cap:100,met:0,seen:1,talk:0,gift:0,know:0,mood:"flat",rom:0,sorry:-9,date:0,b0:5,t0:50,mem:[]});
 const fresh=()=>{const pp={};for(const k in P)pp[k]=mkp();return {day:1,h:8,cash:200,en:80,food:70,mood:60,rep:0,heat:0,at:"home",crates:0,car:0,tune:0,coupe:0,missed:0,bribes:0,crime:0,crimes:0,pk:0,mwins:0,salt:0,tsh:0,gar:0,chop:0,loan:null,lastEv:0,niaWait:0,prom:0,free:0,fin:0,openDay:0,dragDay:0,season0:0,life:5*HS.info().total,hot:0,race:null,tourPos:0,
- sk:{drive:0,wrench:0,charm:0,fight:0},home:{bed:0,fridge:0,tv:0,safe:0},q:{dex:0,rosa:0,marcus:0,nia:0,june:0},pp,inbox:[],proms:[],done:{},pend:[],log:[],over:0,z:freshZ(),cl:freshCl(),gig:freshGig(),tn:freshTn()}};
+ sk:{drive:0,wrench:0,charm:0,fight:0},home:{bed:0,fridge:0,tv:0,safe:0},q:{dex:0,rosa:0,marcus:0,nia:0,june:0},pp,inbox:[],proms:[],done:{},pend:[],log:[],over:0,z:freshZ(),cl:freshCl(),gig:freshGig(),tn:freshTn(),asp:"",booked:0,hap:null}};
 let S=fresh();
 try{const o=JSON.parse(localStorage.getItem("shc"));if(o){Object.assign(S,o);const f=fresh();
   for(const k of["sk","home","q"])S[k]=Object.assign(f[k],o[k]||{});
@@ -122,7 +122,7 @@ function newDay(){
   if(pp("nia").rom>=2&&pp("nia").rom<4&&pp("june").rom>=2&&pp("june").rom<4&&r()<.25)pq("caught");
   if(S.chop&&S.heat>=60&&r()<.4)pq("inspect");
   if(S.day>(S.life||45)&&!S.free&&!S.fin){S.fin=1;pq("finale")}
-  streetDay();cloutDay();
+  streetDay();cloutDay();hapRoll();
   pq("recap");
 }
 function dawn(){
@@ -308,7 +308,7 @@ function A(){const a=[],add=(n,s,ok,fn,hot)=>a.push({n,s,ok,fn,hot}),at=S.at,H=S
     if(stage("nia")>=2)add("Ask Nia what she's hearing","1 hr",true,niaGossip);
   }
   if(at==="pawn"){const fs=stage("sal")>=2,owe=fs?1300:1400;
-    add("Sell crates of \"merchandise\"",S.crates+" on you",S.crates>0,()=>{let t=0;for(let i=0;i<S.crates;i++)t+=260+r()*160;t*=1+.05*lvl("charm")+(fs?.1:0);if(S.heat>50)t*=.7;t=Math.round(t);S.cash+=t;meet("sal");bond("sal",1.5);log("Sal takes "+S.crates+" crate"+(S.crates>1?"s":"")+" for "+$$(t)+(S.heat>50?". He lowballs you. \"You're hot right now, friend.\"":fs?". \"Friend price.\"":". No questions."));S.crates=0;crime(4);tick(1)});
+    add("Sell crates of \"merchandise\"",S.crates+" on you",S.crates>0,()=>{let t=0;for(let i=0;i<S.crates;i++)t+=260+r()*160;t*=1+.05*lvl("charm")+(fs?.1:0)+(hapOn("sale")?.25:0);if(S.heat>50)t*=.7;t=Math.round(t);S.cash+=t;meet("sal");bond("sal",1.5);log("Sal takes "+S.crates+" crate"+(S.crates>1?"s":"")+" for "+$$(t)+(S.heat>50?". He lowballs you. \"You're hot right now, friend.\"":fs?". \"Friend price.\"":". No questions."));S.crates=0;crime(4);tick(1)});
     if(!S.loan)add("Borrow $1,000 from Sal","owe "+$$(owe)+" in 5 days",stage("sal")>=0,()=>{S.cash+=1000;S.loan={amt:owe,due:S.day+5};meet("sal");bond("sal",1);rem("sal","Lent you $1,000");log("Sal counts out ten hundreds. \"Day "+(S.day+5)+". I like you, so I'm telling you now: I'm not a patient man.\"")});
     else{
       add("Pay Sal back",$$(S.loan.amt)+" · due day "+S.loan.due,S.cash>=S.loan.amt,()=>{S.cash-=S.loan.amt;trust("sal",8);bond("sal",3);S.loan=null;rem("sal","Paid what you owed, on time");log("Sal counts it twice. \"See? Easy. Come back anytime.\"")});
@@ -338,7 +338,7 @@ function A(){const a=[],add=(n,s,ok,fn,hot)=>a.push({n,s,ok,fn,hot}),at=S.at,H=S
     const mh=where("marcus")==="lake";
     add("Line up against Marcus",ms<0?"his crew won't let you near the strip":S.dragDay===S.day?"one run a day":!mh?"he's not at the ramp right now":"drag strip · 2 hrs",ms>=0&&mh&&S.dragDay!==S.day&&S.en>=15,dragMarcus);
   }
-  moreActs(at,add);hustleActs(at,add);
+  moreActs(at,add);hustleActs(at,add);hapActs(at,add);
   return a}
 function dex(){
   if(S.z.dexDead)return noDex();
@@ -382,7 +382,7 @@ function haul(c,h,p){
   else{S.q.dex=3;scar("dex",10,5);rem("dex","You got greedy at the warehouse");log("The truck's too heavy and too slow. Sirens. You dump the load on the highway and run.");crime(h);if(!S.over&&r()<.5)jail()}
 }
 function fightNight(){const J=pp("june");meet("june");
-  const f=b=>()=>{tick(2);S.en=cl(S.en-30);xp("fight",2);meet("june");if(r()<Math.min(.9,.3+.12*lvl("fight")+(stage("june")>=2?.08:0))){S.cash+=b;S.rep=cl(S.rep+5);bond("june",4);rem("june","Watched you win");clip("fight",3,"Third-round knockout in the Iron Den basement");log("Third round, he walks into your right hand. The basement goes nuts. +"+$$(b)+".")}else{S.cash=Math.max(0,S.cash-b);S.mood=cl(S.mood-8);rem("june","Watched you get dropped");log("You wake up looking at the ceiling lights. June's holding smelling salts. -"+$$(b)+".")}did("fight")};
+  const dbl=hapOn("card")?2:1,f=b0=>()=>{const b=b0*dbl;tick(2);S.en=cl(S.en-30);xp("fight",2);meet("june");if(r()<Math.min(.9,.3+.12*lvl("fight")+(stage("june")>=2?.08:0))){S.cash+=b;S.rep=cl(S.rep+5);bond("june",4);rem("june","Watched you win");clip("fight",3,"Third-round knockout in the Iron Den basement");log("Third round, he walks into your right hand. The basement goes nuts. +"+$$(b)+".")}else{S.cash=Math.max(0,S.cash-b);S.mood=cl(S.mood-8);rem("june","Watched you get dropped");log("You wake up looking at the ceiling lights. June's holding smelling salts. -"+$$(b)+".")}did("fight")};
   modal("Fight night","Basement of the Iron Den. Folding chairs, cigar smoke, cash in a bucket. June: \"Bet on yourself or go home.\" Your Fighting is level "+lvl("fight")+(stage("june")>=2?", and June's working your corner.":"."),[["Bet $100 on yourself",f(100),S.cash<100],["Bet $300 on yourself",f(300),S.cash<300],
    [S.rep>=10?"Take a dive for $350":"Take a dive (nobody pays a nobody to lose)",()=>{tick(2);S.en=cl(S.en-20);S.cash+=350;S.rep=cl(S.rep-8);S.dove=1;scar("june",20,10);rem("june","Knows you took a dive");gossip("june",-4,"you took a dive at the Iron Den");
      if(S.q.june===1){S.q.june=2;J.rom=4;bond("june",-25);log("You go down in the second. June watches from the corner you promised to be in. She's gone before you get up.")}
@@ -485,7 +485,7 @@ function copRoll(m){
 function jail(){
   if(S.over)return;
   if(S.kowOwes&&!S.kowGone){S.kowOwes=0;S.heat=cl(S.heat-20);S.crates=0;return modal("Kowalski","He walks you to the cruiser, opens the back door, then closes it again. \"IA asked about me. You said nothing. This is me saying nothing.\" He gets in alone. \"That's us even.\"",[["Breathe",0]])}
-  const t=take(.3);S.crates=0;S.heat=cl(S.heat-40,10);streetJail();arrested();
+  const t=take(.3);S.crates=0;S.heat=cl(S.heat-40,10);streetJail();arrested();S.booked=1;
   for(const k of STRAIGHT)if(pp(k).met&&!(k==="nia"&&S.q.nia===2)){trust(k,pp(k).rom>=2?-12:-6);rem(k,"You did three days in county")}
   if(S.bag){S.bag=0;scar("dex",20,8);rem("dex","Cops took his bag out of your place")}
   for(let i=0;i<3&&!S.over;i++){S.day++;newDay()}if(S.over)return;dawn();S.h=9;S.at="home";
@@ -534,7 +534,7 @@ const EV={
   if(!g)ch.unshift(["Pay him off ($1,000)",()=>{S.cash-=1000;S.bribes++;S.heat=cl(S.heat-20);bond("kow",3);rem("kow","On your payroll now");log("He leaves $1,000 heavier. \"I'll swing by next month.\"")},S.cash<1000]);
   modal("Inspection",(g?"Reyes":"Kowalski")+" walks through your garage with a coffee, counting skis with no hull numbers. \"Busy shop.\"",ch)},
  finale(){const v=verdict();modal(v[0],v[1]+epi(),[["Keep living here",()=>{S.free=1;log("The season's done. The city's still here. So are you.")}],["Start a new life",reset]])}};
-function verdict(){return moreVerdict()||verdict0()}
+function verdict(){return aimVerdict()||moreVerdict()||verdict0()}
 function verdict0(){return S.tourPos===1?["Champion","A whole season, and your name is at the top of the sheet at Havasu. Whatever else you did to get here, nobody can say you didn't earn that part."]
  :S.gar&&S.chop?["Kingpin of bay three","A season in and you own a garage that never has the same ski twice. The money's unreal. So is the list of people who want it."]
  :S.gar?["Legit","Your name's on the sign. Grease under your nails, taxes filed, nobody looking for you. You did it the hard way. Mostly."]
@@ -554,7 +554,7 @@ function epi(){const q=S.q,N=pp("nia"),J=pp("june"),fr=friends(),bn=Object.keys(
   S.loan?"You still owe Sal "+$$(S.loan.amt)+". He hasn't forgotten.":"",
   S.tourPos>1?"You finished the series "+ord(S.tourPos)+".":"",
   fr?fr+(fr===1?" person":" people")+" in this city would pick up at 3 a.m. for you.":"Nobody in this city would pick up at 3 a.m. for you.",
-  bn?bn+(bn===1?" crosses":" cross")+" the street when you walk by.":"",...moreEpi()].filter(Boolean);
+  bn?bn+(bn===1?" crosses":" cross")+" the street when you walk by.":"",...moreEpi(),aimEpi()].filter(Boolean);
   return `<br><br>${e.join(" ")}<br><br><b>${$$(S.cash)}</b> · Respect ${S.rep} · Heat ${S.heat} · Day ${S.day}`}
 const ENDS={evicted:["Evicted","Two missed rents and nobody close enough to call. Your stuff's on the curb in contractor bags. A guy is already carrying off your TV."],
  raid:["Locked up","6 a.m. They kick in the door. Turns out the city remembered everything. Dex's name never comes up. Yours does, a lot."]};
@@ -777,6 +777,9 @@ function scene(k,h,o){
     p.push(`<path d="M318 140V60" stroke="#5c6169" stroke-width="6"/><rect x="286" y="34" width="64" height="40" rx="2" fill="#f2f2f2" stroke="#c9c9c9"/><rect x="306" y="48" width="24" height="18" fill="none" stroke="#d6392b" stroke-width="2.4"/><path d="M304 70h28" stroke="#e8792e" stroke-width="3"/><path d="M306 71l4 14M318 71v15M330 71l-4 14M308 78h20" stroke="#cfd3d8" stroke-width="1"/>`);
     p.push(`<path d="M40 150V30h18" stroke="#55595f" stroke-width="4" fill="none"/>`);
     if(n)g.push(lamp(58,34,"y",44));
+    // a block party: string lights over the fence, speakers on a pickup bed, a crowd
+    if(o.party){p.push(`<rect x="196" y="98" width="70" height="26" rx="3" fill="#3a5a8a"/><rect x="204" y="80" width="18" height="22" fill="#111"/><rect x="226" y="84" width="16" height="18" fill="#111"/><circle cx="213" cy="91" r="5" fill="#333"/><circle cx="234" cy="93" r="4" fill="#333"/><g fill="#0b0b10">${Array.from({length:15},(_,i)=>`<circle cx="${10+i*27}" cy="${128+(i%3)*3}" r="8"/><rect x="${2+i*27}" y="${134+(i%3)*3}" width="16" height="20" rx="6"/>`).join("")}</g>`);
+      g.push(`<path d="M0 30q50 18 100 0t100 0 100 0 100 0" stroke="#333" fill="none"/>`+Array.from({length:20},(_,i)=>{const x=i*21+5,y=30+9*Math.sin((x%100)/100*Math.PI);return `<circle cx="${x}" cy="${y.toFixed(1)}" r="2.6" fill="${["#ffd166","#ff3d7f","#2de2e6"][i%3]}" ${GLOW}/>`}).join(""))}
   }
   if(k==="bar"){
     p.push(`<rect width="400" height="150" fill="#1a1220"/>${[0,1,2,3,4,5,6,7,8,9].map(i=>`<path d="M${i*44} 0v150" stroke="#ffffff07" stroke-width="2"/>`).join("")}<rect x="96" y="10" width="208" height="38" rx="6" fill="#0c070f"/>`);
@@ -827,6 +830,7 @@ function scene(k,h,o){
     p.push(`<path d="M0 150V110l120 40z" fill="#9a9a96"/><path d="M0 118l90 32" stroke="#7a7a76" stroke-width="2"/>`);
     p.push([[24,"#ff3d7f"],[66,"#2f8fe0"],[108,"#f4c542"]].map(([x,c])=>`<path d="M${x-18} 90l18-16 18 16z" fill="${c}"/><path d="M${x} 74v-8" stroke="#ddd"/>`).join(""));
     p.push(`<g fill="#ff7a2e">${[[170,112],[250,104],[330,118],[290,134]].map(([x,y])=>`<circle cx="${x}" cy="${y}" r="3.4"/>`).join("")}</g>${skiSide(226,126,.62,o.hull||"#ff3d7f")}<path d="M170 128q10-6 24-3" stroke="#e8f7ff" stroke-width="2" fill="none" opacity=".7"/>`);
+    if(o.boat){p.push(`<rect x="130" y="58" width="160" height="30" fill="#f2f2f2"/><path d="M130 58l20-14h120l20 14z" fill="#e8e8e8"/><rect x="126" y="40" width="168" height="16" rx="3" fill="#123257"/><text x="210" y="52" text-anchor="middle" font-family="Bungee,sans-serif" font-size="11" fill="#fff">BOAT SHOW</text>`+skiSide(170,86,.32,"#2f8fe0")+skiSide(250,86,.32,"#f4c542"))}
     if(o.race){p.push(`<g>${Array.from({length:14},(_,i)=>`<path d="M${130+i*19} 48l9 6-9 6z" fill="${["#ff3d7f","#ffd166","#2de2e6"][i%3]}"/>`).join("")}<path d="M128 48h270" stroke="#ddd"/></g><rect x="150" y="16" width="120" height="22" rx="4" fill="#111"/>`);g.push(neon(210,33,"RACE DAY","#ffd166",14))}
     if(n)g.push(`<circle cx="320" cy="26" r="9" fill="#f4f1de"/><path d="M300 100h40M310 108h22M316 116h10" stroke="#f4f1de" stroke-width="1.4" opacity=".5"/>`);
   }
@@ -904,7 +908,7 @@ const SCHED={
  sal:[["pawn",9,19],["bar",20,23,d=>d%3===0]],
  june:[["gym",6,24]],
  tommy:[["diner",6,8],["garage",8,18]]};
-function where(k){if(gone(k))return null;for(const [at,a,b,f] of SCHED[k]||[])if(isOpen([a,b],S.h)&&(!f||f(S.day)))return at;return null}
+function where(k){if(gone(k))return null;if(hapOn("party")&&["nia","marcus","june"].includes(k))return "court";for(const [at,a,b,f] of SCHED[k]||[])if(isOpen([a,b],S.h)&&(!f||f(S.day)))return at;return null}
 const present=at=>Object.keys(P).filter(k=>where(k)===at);
 const moodOf=k=>stage(k)<0?"cold":pp(k).mood;
 const usual=k=>{const s=(SCHED[k]||[]).find(x=>!x[3])||SCHED[k][0];return L[s[0]].n+" · "+fmtH(s[1])+"–"+fmtH(s[2])};
@@ -952,6 +956,7 @@ function sfx(k){
 // ---- what to do next ----
 // Built fresh from the state on every render: race day, promises, texts, rent, Sal, a clip to post, story beats waiting
 // elsewhere in the city (actions marked 2 in A()), and a nudge or two when nothing is pressing. Highest priority first.
+let GL=[];
 const NEEDAT={shift_diner:"diner",fix_walkin:"diner",shift_garage:"garage",see_nia:"bar",help_marcus:"garage",race:"lake",train:"gym",fight:"gym",nightrun:"docks",respray:"garage"};
 function goals(){
   const g=[],I=HS.info(),today=S.day-(S.h<5?1:0),add=(pri,ic,t,s,at,who)=>g.push({pri,ic,t,s,at,who});
@@ -963,10 +968,12 @@ function goals(){
   {let nr=S.day+1;while(!rentDay(nr))nr++;const a=rentAmt();if(a){const dl=nr-S.day;add(S.cash<a?(dl<=2?95:55):22,"here","Rent "+$$(a)+" due day "+nr,S.cash>=a?"you've got it covered":"you're "+$$(a-S.cash)+" short",null)}}
   if(S.loan)add(S.loan.due-S.day<=1?92:50,"cash","Pay Sal back "+$$(S.loan.amt),"by day "+S.loan.due,"pawn","sal");
   if(S.cl.clip)add(40,"cam","Post your clip","“"+S.cl.clip.t+"”","clout");
+  {const h=hap();if(h&&(h.from>h.to?S.h<h.to||S.h<24:S.h<h.to))add(hapOn(S.hap.id)?60:45,"radio",h.n,h.s,h.at)}
   const here=S.at;
   for(const k in L){if(k===here||!isOpen(L[k].o,S.h))continue;S.at=k;let acts=[];try{acts=A()}catch(e){}S.at=here;
     for(const a of acts)if(a.hot===2&&a.ok)add(75,"alert",a.n,L[k].n,k,WHO[k])}
   S.at=here;
+  if(ASP[S.asp]&&g.length<5)add(20,ASP[S.asp].ic,"Aim: "+ASP[S.asp].n,ASP[S.asp].line(),ASP[S.asp].at);
   if(g.length<4){
     if(!pp("tommy").met)add(12,"wrench","Meet Tommy at the garage","he hires, and he builds your ski","garage","tommy");
     else if(!S.car&&S.cash>=1200)add(12,"ski","Buy Tommy's old truck","$1,200 · no more walking","garage");
@@ -999,11 +1006,12 @@ function hud(){
 function hereView(){
   const p=L[S.at],op=isOpen(p.o,S.h),acts=op?A():[],who=present(S.at),I=HS.info(),rd=I.round<I.total&&S.day===motoDay(I.round),all=p.o[1]-p.o[0]===24;
   render.acts=acts;
-  const so={pad:S.z.pad,bed:S.home.bed,tv:S.home.tv,fridge:S.home.fridge,safe:S.home.safe,cactus:S.q.nia===3,closed:!op,race:rd&&S.at==="lake",chop:S.chop,vance:S.z.v>=1&&S.z.v<9,fight:S.at==="gym"&&S.h>=21,lost:S.q.rosa===5};
+  const so={pad:S.z.pad,bed:S.home.bed,tv:S.home.tv,fridge:S.home.fridge,safe:S.home.safe,cactus:S.q.nia===3,closed:!op,race:rd&&S.at==="lake",chop:S.chop,vance:S.z.v>=1&&S.z.v<9,fight:S.at==="gym"&&S.h>=21,lost:S.q.rosa===5,party:S.at==="court"&&hapOn("party"),boat:S.at==="lake"&&hapOn("boat")};
   const hrs=all?"always open":op?(S.at==="lake"&&rd?"race day · till 8pm":"open · till "+fmtH(p.o[1])):"closed · opens "+fmtH(p.o[0]);
   const desc=S.at==="garage"&&S.gar?"Yours now. Tommy still shows up at eight out of habit. Parts are at cost.":S.at==="diner"&&S.q.rosa===5?"Sal's nephew is on the grill. The coffee got worse.":S.at==="home"&&S.z.pad?PAD[S.z.pad][3]:p.d;
-  const ml=op&&who.length&&stage(who[0])>=0&&pp(who[0]).met?P[who[0]].mood[pp(who[0]).mood]:"";
-  const last=S.log[0],nx=goals().find(x=>x.at!==S.at&&x.pri>=30);
+  // a mood line is written for the person's own spot (Nia's is about the bar), so it shows only there
+  const ow=WHO[S.at],ml=op&&ow&&who.includes(ow)&&stage(ow)>=0&&pp(ow).met?P[ow].mood[pp(ow).mood]:"";
+  const last=S.log[0],nx=GL.find(x=>x.at!==S.at&&x.pri>=30);
   let h=`<div class="scene">${scene(S.at,S.h,so)}`
    +(who.length?`<div class="whohere">${who.map(k=>`<button class="chip${pp(k).met?"":" new"}" data-who="${k}" aria-label="Talk to ${P[k].n}">${face(k,moodOf(k),50)}<b>${P[k].n}</b></button>`).join("")}</div>`:"")+`</div>`;
   h+=`<div class="phead"><h2>${p.n}</h2><span class="hrs${op?"":" shut"}">${hrs}</span></div>`;
@@ -1020,7 +1028,7 @@ function hereView(){
 let TRAVEL=null;
 function mapView(){
   mapBase();
-  const n=dark(S.h),I=HS.info(),rd=I.round<I.total&&S.day===motoDay(I.round),gl=goals(),hot={},st=Math.ceil(S.heat/20);
+  const n=dark(S.h),I=HS.info(),rd=I.round<I.total&&S.day===motoDay(I.round),gl=GL,hot={},st=Math.ceil(S.heat/20);
   for(const x of gl)if(x.at&&L[x.at]&&!hot[x.at]&&x.pri>=30)hot[x.at]=x;
   let svg=MAPBASE+(n?`<rect width="400" height="560" fill="#050817" opacity=".4"/>`+MAPNITE:"");
   for(const k in L){const [x,y]=MXY[k],op=isOpen(L[k].o,S.h),all=L[k].o[1]-L[k].o[0]===24;
@@ -1077,7 +1085,7 @@ function youView(){
   const row=(a,b)=>`<div class="row"><span>${a}</span><b>${b}</b></div>`,sec=(t,x)=>`<section class="card"><h3>${t}</h3>${x}</section>`;
   let nr=S.day+1;while(!rentDay(nr))nr++;
   $("you").innerHTML=`<div class="youtop"><h2>Side Hustle<br>Holeshot</h2><button id="snd" aria-label="Sound ${sndOn()?"on":"off"}">${ico(sndOn()?"snd":"mute")}</button></div>`
-   +sec("Money",row("Cash",$$(S.cash))+(inc?row("Daily take",$$(inc)+(S.chop?" · chop shop running":"")):"")+(rentAmt()?row("Rent",$$(rentAmt())+" due day "+nr+(S.missed?" · 1 missed":"")):row("Rent","none: the house is yours"))
+   +aimCard()+sec("Money",row("Cash",$$(S.cash))+(inc?row("Daily take",$$(inc)+(S.chop?" · chop shop running":"")):"")+(rentAmt()?row("Rent",$$(rentAmt())+" due day "+nr+(S.missed?" · 1 missed":"")):row("Rent","none: the house is yours"))
      +(S.loan?row("Owed to Sal",$$(S.loan.amt)+" by day "+S.loan.due):"")+(S.oweDay?row("Nia owes you","$200"):"")+sponsorRows())
    +(S.proms.length?sec("You promised",S.proms.map(pr=>row(ASK[pr.id].what,pr.due>today?"tomorrow":"today")).join("")):"")
    +sec("Skills",Object.entries(SK).map(([k,n])=>`<div class="row"><span>${n}</span><b class="pips" aria-label="level ${lvl(k)} of 5">${"●".repeat(lvl(k))+"○".repeat(5-lvl(k))}</b></div>`).join(""))
@@ -1134,8 +1142,8 @@ EV.recap=()=>{
   const ppl=Object.keys(P).filter(k=>b.p[k][2]&&a.p[k]&&(Math.abs(b.p[k][0]-a.p[k][0])>=2||Math.abs(b.p[k][1]-a.p[k][1])>=2));
   if(ppl.length)L2.push(`<div class="rcp">${ppl.map(k=>{const db=Math.round(b.p[k][0]-a.p[k][0]),dt=Math.round(b.p[k][1]-a.p[k][1]);return `<span>${face(k,moodOf(k),34)}<small class="${db+dt>=0?"pos":"neg"}">${db+dt>=0?"▲":"▼"}</small></span>`}).join("")}</div>`);
   const nw=S.z.news.shift();if(nw)log("Radio: "+nw);
-  const g=goals().slice(0,3);
-  modal("Day "+S.day,`<div class="recap">${L2.join("")}${nw?`<p class="radio">${ico("radio")}${nw}</p>`:""}${g.length?`<h4>Today</h4>`+g.map(x=>`<div class="rg">${x.who?face(x.who,moodOf(x.who),26):ico(x.ic)}<span><b>${x.t}</b><small>${x.s}</small></span></div>`).join(""):""}</div>`,[["Get going",0]]);
+  const g=goals().slice(0,3),hp=hap();
+  modal("Day "+S.day,`<div class="recap">${L2.join("")}${nw?`<p class="radio">${ico("radio")}${nw}</p>`:""}${hp?`<p class="radio hap">${ico("star")}<span><b>${hp.n}</b> · ${hp.s}</span></p>`:""}${g.length?`<h4>Today</h4>`+g.map(x=>`<div class="rg">${x.who?face(x.who,moodOf(x.who),26):ico(x.ic)}<span><b>${x.t}</b><small>${x.s}</small></span></div>`).join(""):""}</div>`,[["Get going",0]]);
 };
 
 // ---- tabs ----
@@ -1282,6 +1290,69 @@ function hustleView(){
   else if(!D.met&&!S.z.dexDead)x+=card("alert","The street","",`<p class="note">There's a guy in the back booth at the Low End after six, eating sunflower seeds. People say he can get anything.</p>`,["bar","Go to the Low End"]);
   $("hustle").innerHTML=x;
 }
+// ---------- the shape of a season ----------
+// Joined into city.js at //@life. Two things that give a season direction and make days different from each other.
+// An aim, picked on day 1 and changeable any time from You: what you came here to do. It is tracked all season, shows up in
+// what's next, and if you get there the season ends on it. And happenings: most days something is on somewhere in the city
+// (a block party, a boat show, a stacked fight card, checkpoints, Sal paying top dollar), announced in the morning.
+
+// prog(): 0 to 1, how close you are. line(): where you stand, in a few words. done(): whether you made it. at: where to go.
+const ASP={
+ champ:{n:"Champion",d:"Win the series at Havasu.",ic:"trophy",at:"lake",
+  prog:()=>{const I=HS.info();return I.round>=I.total?(S.tourPos===1?1:.5):Math.min(.95,I.round/I.total*(I.pos===1?1:I.pos<=3?.7:.4))},
+  line:()=>{const I=HS.info();return I.round>=I.total?"series over · "+ord(S.tourPos||I.pos):I.round?ord(I.pos)+" in the series after "+I.round+" of "+I.total+" rounds":"first round on day "+motoDay(0)},
+  done:()=>S.tourPos===1,win:"You came to win the series and you won it. The sheet at Havasu has your name at the top, and the city that watched you do it will be telling the story wrong for years."},
+ king:{n:"Kingpin",d:"Run something on the street, and finish with $20,000.",ic:"alert",at:"bar",
+  prog:()=>(runs()?.5:0)+Math.min(.5,S.cash/40000),line:()=>(runs()?"you run something · ":"you don't run anything yet · ")+$$(S.cash)+" of $20,000",
+  done:()=>runs()&&S.cash>=20000,win:"You came to run something and you run it. Twenty grand in a shoebox and a corner of this city that answers to you. Sleep light."},
+ legit:{n:"Legit",d:"Own the garage, and finish clean: never booked, heat under 20.",ic:"wrench",at:"garage",
+  prog:()=>(S.gar?.6:Math.min(.5,S.cash/16000))+(S.booked?0:.2)+(S.heat<20?.2:0),line:()=>(S.gar?"the garage is yours":$$(S.cash)+" toward the garage")+(S.booked?" · you've been booked":" · clean record")+" · heat "+Math.round(S.heat),
+  done:()=>S.gar&&!S.booked&&S.heat<20,win:"Your name's on the sign at the garage, your record's clean, and nobody in a uniform knows your face. You did it the hard way, on purpose."},
+ fame:{n:"Famous",d:"50,000 followers and three sponsors.",ic:"cam",at:"lake",
+  prog:()=>Math.min(1,S.cl.f/50000*.7+signed().length/3*.3),line:()=>S.cl.f.toLocaleString()+" followers · "+signed().length+" of 3 sponsors",
+  done:()=>S.cl.f>=50000&&signed().length>=3,win:"Fifty thousand people watch everything you do, and three companies pay you for it. You'd better keep doing interesting things."},
+ fam:{n:"Family",d:"Four friends who'd pick up at 3 a.m., and someone to come home to.",ic:"people",at:null,
+  prog:()=>Math.min(1,Math.min(4,friends())/4*.6+(home2()?.4:0)),line:()=>Math.min(4,friends())+" of 4 friends · "+(S.q.nia===3?"Nia lives with you":S.q.june===1?"you're in June's corner":"nobody to come home to yet"),
+  done:()=>friends()>=4&&home2(),win:"You came here alone. Now four people would pick up at 3 a.m., and somebody leaves the light on for you."}};
+const runs=()=>!!(S.chop||S.z.docks||S.z.v===6||S.q.nia===2),home2=()=>S.q.nia===3||S.q.june===1;
+function aimPick(){
+  modal("What are you here for?","Pick what you came to this city to do. It shapes what's next and how the season ends. You can change it any time from You.",
+    Object.entries(ASP).map(([k,a])=>[a.n+" · "+a.d,()=>{S.asp=k;log("Your aim: "+a.n+". "+a.d)}]).concat([["Just living · no aim",()=>{S.asp="none"}]]));
+}
+function aimCard(){
+  const a=ASP[S.asp];
+  if(!a)return `<section class="card aim"><h3>${ico("flag")}Your aim<small>none</small></h3><p class="note">You're just living. Pick something and the city will point you at it.</p><button class="go" data-x="${xa(aimPick)}">${ico("flag")}Pick an aim</button></section>`;
+  const p=Math.max(0,Math.min(1,a.prog()));
+  return `<section class="card aim"><h3>${ico(a.ic)}${a.n}<small>${Math.round(p*100)}%</small></h3><p class="note" style="margin:0 0 8px">${a.d}</p><div class="pbar"><i style="width:${(p*100).toFixed(0)}%"></i></div><p class="note" style="margin-top:6px">${a.line()}</p><button class="go" data-x="${xa(aimPick)}">${ico("flag")}Change your aim</button></section>`;
+}
+function aimVerdict(){const a=ASP[S.asp];return a&&a.done()?[a.n,a.win]:null}
+function aimEpi(){const a=ASP[S.asp];return a&&!a.done()?"You came here to be "+a.n.toLowerCase()+". You didn't get there this time.":""}
+
+// ---- happenings ----
+// One a day at most, rolled overnight. from and to: the hours it's on. at: where.
+const HAP={
+ party:{n:"Block party at the court",s:"5pm to 9pm · everybody's going",at:"court",from:17,to:21},
+ boat:{n:"Boat show at the Lake",s:"10am to 6pm · booth work and good footage",at:"lake",from:10,to:18},
+ card:{n:"Fight night's stacked",s:"the Iron Den after 9pm · purses double",at:"gym",from:21,to:24},
+ check:{n:"Police checkpoints on the bridges",s:"after dark · careful what you carry",at:null,from:20,to:5},
+ sale:{n:"Sal's paying top dollar",s:"Gold Line, 9am to 7pm · a quarter more for crates",at:"pawn",from:9,to:19}};
+const hap=id=>S.hap&&S.hap.day===S.day&&(!id||S.hap.id===id)?HAP[S.hap.id]:null;
+const hapOn=id=>{const h=hap(id);return !!h&&isOpen([h.from,h.to],S.h)};
+function hapRoll(){S.hap=r()<.45?{id:pick(Object.keys(HAP)),day:S.day}:null}
+// what a happening adds to a place's list of things to do
+function hapActs(at,add){
+  if(at==="court"&&hapOn("party"))add("Hit the block party","$10 · 3 hrs · everybody's here",S.cash>=10&&S.en>=20,()=>{
+    S.cash-=10;tick(3);if(S.over)return;S.mood=cl(S.mood+22);S.en=cl(S.en-15);S.rep=cl(S.rep+3);S.food=cl(S.food+25);
+    const w=present("court").filter(k=>pp(k).met&&stage(k)>=0);for(const k of w){bond(k,3);meet(k)}
+    if(r()<.5)clip("party",2,"The dance-off at the block party");
+    log("Speakers on a pickup bed, a grill nobody's in charge of, and a dance-off you will not be discussing."+(w.length?" "+w.map(k=>P[k].n).join(" and ")+" "+(w.length>1?"are":"is")+" there.":""))},2);
+  if(at==="lake"&&hapOn("boat"))add("Work the boat show booth","4 hrs · ~$150 · good footage",S.en>=25,()=>{
+    tick(4);if(S.over)return;const p=pay(130+Math.round(r()*40));S.cash+=p;S.en=cl(S.en-20);S.rep=cl(S.rep+1);xp("charm");
+    clip("boat",r()<.4?3:2,"Behind the scenes at the boat show");
+    log("Four hours in a booth telling dentists which three-seater to buy. "+$$(p)+", sunburn, and some decent footage.")},2);
+}
+// a stop is likelier at night when the checkpoints are up
+const hapCops=()=>hapOn("check")?2.2:1;
 // ---------- the street ----------
 // Joined into city.js at //@street, so it shares the city's closure. What it adds: runs on the water with Harbor Patrol behind
 // you (the racing side plays them, through HS.open with mode "run"), product to buy and move, a wanted level that sends more
@@ -1750,14 +1821,14 @@ function go(k){
   S.at=k;tick(S.car?0:1);log((S.car?"You drive to ":"You walk to ")+L[k].n+".");
   const now=S.day*24+S.h;
   if(!S.over&&now-S.lastEv>=6&&r()<.3){S.lastEv=now;pick(STREET)()}
-  else if(S.h>=20||S.h<5)copRoll(.5);
+  else if(S.h>=20||S.h<5)copRoll(.5*hapCops());
   TRAVEL={from,to:k};render();
   if(onMap)setTimeout(()=>{if($("app").dataset.tab==="map")tab("here")},900);else tab("here");
 }
 function render(){
   while(!open()&&!S.over&&S.pend.length){const [k,a]=S.pend.shift().split(":");EV[k]&&EV[k](a)}
   save();if(!S.d0)S.d0=snap();
-  XA=[];hud();hereView();mapView();hustleView();peopleView();youView();phoneView();
+  XA=[];GL=goals();hud();hereView();mapView();hustleView();peopleView();youView();phoneView();
 }
 // Every tap that does something is wrapped in a snapshot, so what it changed can pop up (toast, ui.js).
 const did1=fn=>{const a=snap();fn();render();toast(deltas(a,snap()))};
@@ -1769,6 +1840,7 @@ root.addEventListener("click",e=>{
   if(open())return;
   const tb=t.closest("#tabs [data-tab]");if(tb)return tab(tb.dataset.tab);
   if(t.closest("#phone")){phone();return render()}
+  if(t.closest("[data-aim]"))return did1(aimPick);
   if(t.closest("[data-pclose]")||t===$("phoneui")){PH.open=0;return render()}
   if(t.closest("[data-pback]")){PH.app=null;return render()}
   const ap=t.closest("[data-app]");if(ap){const id=ap.dataset.app;if(id==="map"){PH.open=0;tab("map")}else{PH.open=1;PH.app=id}return render()}
@@ -1798,7 +1870,9 @@ HS.city(true);host.hidden=false;if(!adult())gate();
 for(const i of root.querySelectorAll("#tabs [data-i]"))i.outerHTML=ico(i.dataset.i);$("phico").outerHTML=ico("phone");
 const first=!S.log.length;if(first)log("Day 1. $200, a studio apartment and a bare ski. Rent's due on day 8. The first race weekend is day 5.");
 render();
+if(!first&&!S.asp&&!S.over)aimPick();
 if(first)modal("Day 1","New city, $200, a bare ski, and rent due on day 8.<ul><li><b>Here</b> is where you are and what you can do. Tap a face to talk. <b>Map</b> gets you around. <b>Hustles</b> is every way to make money. <b>People</b> are the eight who'll remember what you do.</li><li>A race weekend every five days, starting day 5, at the Lake. Your ski gets built at Tommy's Garage out of the same money you live on.</li><li>Bond is how close you are. Trust is whether they believe you. They move separately, and people talk.</li><li>Your phone buzzes. Saying yes is a promise.</li><li>Not everything here is legal. Heat brings the law, on the street and on the water.</li></ul>",[["Let's go",0]]);
+if(first)aimPick();
 if(S.over)end(S.over);
 
 })();

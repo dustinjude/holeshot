@@ -14,7 +14,7 @@ const SCHED={
  sal:[["pawn",9,19],["bar",20,23,d=>d%3===0]],
  june:[["gym",6,24]],
  tommy:[["diner",6,8],["garage",8,18]]};
-function where(k){if(gone(k))return null;for(const [at,a,b,f] of SCHED[k]||[])if(isOpen([a,b],S.h)&&(!f||f(S.day)))return at;return null}
+function where(k){if(gone(k))return null;if(hapOn("party")&&["nia","marcus","june"].includes(k))return "court";for(const [at,a,b,f] of SCHED[k]||[])if(isOpen([a,b],S.h)&&(!f||f(S.day)))return at;return null}
 const present=at=>Object.keys(P).filter(k=>where(k)===at);
 const moodOf=k=>stage(k)<0?"cold":pp(k).mood;
 const usual=k=>{const s=(SCHED[k]||[]).find(x=>!x[3])||SCHED[k][0];return L[s[0]].n+" · "+fmtH(s[1])+"–"+fmtH(s[2])};
@@ -62,6 +62,7 @@ function sfx(k){
 // ---- what to do next ----
 // Built fresh from the state on every render: race day, promises, texts, rent, Sal, a clip to post, story beats waiting
 // elsewhere in the city (actions marked 2 in A()), and a nudge or two when nothing is pressing. Highest priority first.
+let GL=[];
 const NEEDAT={shift_diner:"diner",fix_walkin:"diner",shift_garage:"garage",see_nia:"bar",help_marcus:"garage",race:"lake",train:"gym",fight:"gym",nightrun:"docks",respray:"garage"};
 function goals(){
   const g=[],I=HS.info(),today=S.day-(S.h<5?1:0),add=(pri,ic,t,s,at,who)=>g.push({pri,ic,t,s,at,who});
@@ -73,10 +74,12 @@ function goals(){
   {let nr=S.day+1;while(!rentDay(nr))nr++;const a=rentAmt();if(a){const dl=nr-S.day;add(S.cash<a?(dl<=2?95:55):22,"here","Rent "+$$(a)+" due day "+nr,S.cash>=a?"you've got it covered":"you're "+$$(a-S.cash)+" short",null)}}
   if(S.loan)add(S.loan.due-S.day<=1?92:50,"cash","Pay Sal back "+$$(S.loan.amt),"by day "+S.loan.due,"pawn","sal");
   if(S.cl.clip)add(40,"cam","Post your clip","“"+S.cl.clip.t+"”","clout");
+  {const h=hap();if(h&&(h.from>h.to?S.h<h.to||S.h<24:S.h<h.to))add(hapOn(S.hap.id)?60:45,"radio",h.n,h.s,h.at)}
   const here=S.at;
   for(const k in L){if(k===here||!isOpen(L[k].o,S.h))continue;S.at=k;let acts=[];try{acts=A()}catch(e){}S.at=here;
     for(const a of acts)if(a.hot===2&&a.ok)add(75,"alert",a.n,L[k].n,k,WHO[k])}
   S.at=here;
+  if(ASP[S.asp]&&g.length<5)add(20,ASP[S.asp].ic,"Aim: "+ASP[S.asp].n,ASP[S.asp].line(),ASP[S.asp].at);
   if(g.length<4){
     if(!pp("tommy").met)add(12,"wrench","Meet Tommy at the garage","he hires, and he builds your ski","garage","tommy");
     else if(!S.car&&S.cash>=1200)add(12,"ski","Buy Tommy's old truck","$1,200 · no more walking","garage");
@@ -109,11 +112,12 @@ function hud(){
 function hereView(){
   const p=L[S.at],op=isOpen(p.o,S.h),acts=op?A():[],who=present(S.at),I=HS.info(),rd=I.round<I.total&&S.day===motoDay(I.round),all=p.o[1]-p.o[0]===24;
   render.acts=acts;
-  const so={pad:S.z.pad,bed:S.home.bed,tv:S.home.tv,fridge:S.home.fridge,safe:S.home.safe,cactus:S.q.nia===3,closed:!op,race:rd&&S.at==="lake",chop:S.chop,vance:S.z.v>=1&&S.z.v<9,fight:S.at==="gym"&&S.h>=21,lost:S.q.rosa===5};
+  const so={pad:S.z.pad,bed:S.home.bed,tv:S.home.tv,fridge:S.home.fridge,safe:S.home.safe,cactus:S.q.nia===3,closed:!op,race:rd&&S.at==="lake",chop:S.chop,vance:S.z.v>=1&&S.z.v<9,fight:S.at==="gym"&&S.h>=21,lost:S.q.rosa===5,party:S.at==="court"&&hapOn("party"),boat:S.at==="lake"&&hapOn("boat")};
   const hrs=all?"always open":op?(S.at==="lake"&&rd?"race day · till 8pm":"open · till "+fmtH(p.o[1])):"closed · opens "+fmtH(p.o[0]);
   const desc=S.at==="garage"&&S.gar?"Yours now. Tommy still shows up at eight out of habit. Parts are at cost.":S.at==="diner"&&S.q.rosa===5?"Sal's nephew is on the grill. The coffee got worse.":S.at==="home"&&S.z.pad?PAD[S.z.pad][3]:p.d;
-  const ml=op&&who.length&&stage(who[0])>=0&&pp(who[0]).met?P[who[0]].mood[pp(who[0]).mood]:"";
-  const last=S.log[0],nx=goals().find(x=>x.at!==S.at&&x.pri>=30);
+  // a mood line is written for the person's own spot (Nia's is about the bar), so it shows only there
+  const ow=WHO[S.at],ml=op&&ow&&who.includes(ow)&&stage(ow)>=0&&pp(ow).met?P[ow].mood[pp(ow).mood]:"";
+  const last=S.log[0],nx=GL.find(x=>x.at!==S.at&&x.pri>=30);
   let h=`<div class="scene">${scene(S.at,S.h,so)}`
    +(who.length?`<div class="whohere">${who.map(k=>`<button class="chip${pp(k).met?"":" new"}" data-who="${k}" aria-label="Talk to ${P[k].n}">${face(k,moodOf(k),50)}<b>${P[k].n}</b></button>`).join("")}</div>`:"")+`</div>`;
   h+=`<div class="phead"><h2>${p.n}</h2><span class="hrs${op?"":" shut"}">${hrs}</span></div>`;
@@ -130,7 +134,7 @@ function hereView(){
 let TRAVEL=null;
 function mapView(){
   mapBase();
-  const n=dark(S.h),I=HS.info(),rd=I.round<I.total&&S.day===motoDay(I.round),gl=goals(),hot={},st=Math.ceil(S.heat/20);
+  const n=dark(S.h),I=HS.info(),rd=I.round<I.total&&S.day===motoDay(I.round),gl=GL,hot={},st=Math.ceil(S.heat/20);
   for(const x of gl)if(x.at&&L[x.at]&&!hot[x.at]&&x.pri>=30)hot[x.at]=x;
   let svg=MAPBASE+(n?`<rect width="400" height="560" fill="#050817" opacity=".4"/>`+MAPNITE:"");
   for(const k in L){const [x,y]=MXY[k],op=isOpen(L[k].o,S.h),all=L[k].o[1]-L[k].o[0]===24;
@@ -187,7 +191,7 @@ function youView(){
   const row=(a,b)=>`<div class="row"><span>${a}</span><b>${b}</b></div>`,sec=(t,x)=>`<section class="card"><h3>${t}</h3>${x}</section>`;
   let nr=S.day+1;while(!rentDay(nr))nr++;
   $("you").innerHTML=`<div class="youtop"><h2>Side Hustle<br>Holeshot</h2><button id="snd" aria-label="Sound ${sndOn()?"on":"off"}">${ico(sndOn()?"snd":"mute")}</button></div>`
-   +sec("Money",row("Cash",$$(S.cash))+(inc?row("Daily take",$$(inc)+(S.chop?" · chop shop running":"")):"")+(rentAmt()?row("Rent",$$(rentAmt())+" due day "+nr+(S.missed?" · 1 missed":"")):row("Rent","none: the house is yours"))
+   +aimCard()+sec("Money",row("Cash",$$(S.cash))+(inc?row("Daily take",$$(inc)+(S.chop?" · chop shop running":"")):"")+(rentAmt()?row("Rent",$$(rentAmt())+" due day "+nr+(S.missed?" · 1 missed":"")):row("Rent","none: the house is yours"))
      +(S.loan?row("Owed to Sal",$$(S.loan.amt)+" by day "+S.loan.due):"")+(S.oweDay?row("Nia owes you","$200"):"")+sponsorRows())
    +(S.proms.length?sec("You promised",S.proms.map(pr=>row(ASK[pr.id].what,pr.due>today?"tomorrow":"today")).join("")):"")
    +sec("Skills",Object.entries(SK).map(([k,n])=>`<div class="row"><span>${n}</span><b class="pips" aria-label="level ${lvl(k)} of 5">${"●".repeat(lvl(k))+"○".repeat(5-lvl(k))}</b></div>`).join(""))
@@ -244,8 +248,8 @@ EV.recap=()=>{
   const ppl=Object.keys(P).filter(k=>b.p[k][2]&&a.p[k]&&(Math.abs(b.p[k][0]-a.p[k][0])>=2||Math.abs(b.p[k][1]-a.p[k][1])>=2));
   if(ppl.length)L2.push(`<div class="rcp">${ppl.map(k=>{const db=Math.round(b.p[k][0]-a.p[k][0]),dt=Math.round(b.p[k][1]-a.p[k][1]);return `<span>${face(k,moodOf(k),34)}<small class="${db+dt>=0?"pos":"neg"}">${db+dt>=0?"▲":"▼"}</small></span>`}).join("")}</div>`);
   const nw=S.z.news.shift();if(nw)log("Radio: "+nw);
-  const g=goals().slice(0,3);
-  modal("Day "+S.day,`<div class="recap">${L2.join("")}${nw?`<p class="radio">${ico("radio")}${nw}</p>`:""}${g.length?`<h4>Today</h4>`+g.map(x=>`<div class="rg">${x.who?face(x.who,moodOf(x.who),26):ico(x.ic)}<span><b>${x.t}</b><small>${x.s}</small></span></div>`).join(""):""}</div>`,[["Get going",0]]);
+  const g=goals().slice(0,3),hp=hap();
+  modal("Day "+S.day,`<div class="recap">${L2.join("")}${nw?`<p class="radio">${ico("radio")}${nw}</p>`:""}${hp?`<p class="radio hap">${ico("star")}<span><b>${hp.n}</b> · ${hp.s}</span></p>`:""}${g.length?`<h4>Today</h4>`+g.map(x=>`<div class="rg">${x.who?face(x.who,moodOf(x.who),26):ico(x.ic)}<span><b>${x.t}</b><small>${x.s}</small></span></div>`).join(""):""}</div>`,[["Get going",0]]);
 };
 
 // ---- tabs ----

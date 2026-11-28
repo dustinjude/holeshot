@@ -216,6 +216,9 @@ function scene(k,h,o){
     p.push(`<path d="M318 140V60" stroke="#5c6169" stroke-width="6"/><rect x="286" y="34" width="64" height="40" rx="2" fill="#f2f2f2" stroke="#c9c9c9"/><rect x="306" y="48" width="24" height="18" fill="none" stroke="#d6392b" stroke-width="2.4"/><path d="M304 70h28" stroke="#e8792e" stroke-width="3"/><path d="M306 71l4 14M318 71v15M330 71l-4 14M308 78h20" stroke="#cfd3d8" stroke-width="1"/>`);
     p.push(`<path d="M40 150V30h18" stroke="#55595f" stroke-width="4" fill="none"/>`);
     if(n)g.push(lamp(58,34,"y",44));
+    // a block party: string lights over the fence, speakers on a pickup bed, a crowd
+    if(o.party){p.push(`<rect x="196" y="98" width="70" height="26" rx="3" fill="#3a5a8a"/><rect x="204" y="80" width="18" height="22" fill="#111"/><rect x="226" y="84" width="16" height="18" fill="#111"/><circle cx="213" cy="91" r="5" fill="#333"/><circle cx="234" cy="93" r="4" fill="#333"/><g fill="#0b0b10">${Array.from({length:15},(_,i)=>`<circle cx="${10+i*27}" cy="${128+(i%3)*3}" r="8"/><rect x="${2+i*27}" y="${134+(i%3)*3}" width="16" height="20" rx="6"/>`).join("")}</g>`);
+      g.push(`<path d="M0 30q50 18 100 0t100 0 100 0 100 0" stroke="#333" fill="none"/>`+Array.from({length:20},(_,i)=>{const x=i*21+5,y=30+9*Math.sin((x%100)/100*Math.PI);return `<circle cx="${x}" cy="${y.toFixed(1)}" r="2.6" fill="${["#ffd166","#ff3d7f","#2de2e6"][i%3]}" ${GLOW}/>`}).join(""))}
   }
   if(k==="bar"){
     p.push(`<rect width="400" height="150" fill="#1a1220"/>${[0,1,2,3,4,5,6,7,8,9].map(i=>`<path d="M${i*44} 0v150" stroke="#ffffff07" stroke-width="2"/>`).join("")}<rect x="96" y="10" width="208" height="38" rx="6" fill="#0c070f"/>`);
@@ -266,6 +269,7 @@ function scene(k,h,o){
     p.push(`<path d="M0 150V110l120 40z" fill="#9a9a96"/><path d="M0 118l90 32" stroke="#7a7a76" stroke-width="2"/>`);
     p.push([[24,"#ff3d7f"],[66,"#2f8fe0"],[108,"#f4c542"]].map(([x,c])=>`<path d="M${x-18} 90l18-16 18 16z" fill="${c}"/><path d="M${x} 74v-8" stroke="#ddd"/>`).join(""));
     p.push(`<g fill="#ff7a2e">${[[170,112],[250,104],[330,118],[290,134]].map(([x,y])=>`<circle cx="${x}" cy="${y}" r="3.4"/>`).join("")}</g>${skiSide(226,126,.62,o.hull||"#ff3d7f")}<path d="M170 128q10-6 24-3" stroke="#e8f7ff" stroke-width="2" fill="none" opacity=".7"/>`);
+    if(o.boat){p.push(`<rect x="130" y="58" width="160" height="30" fill="#f2f2f2"/><path d="M130 58l20-14h120l20 14z" fill="#e8e8e8"/><rect x="126" y="40" width="168" height="16" rx="3" fill="#123257"/><text x="210" y="52" text-anchor="middle" font-family="Bungee,sans-serif" font-size="11" fill="#fff">BOAT SHOW</text>`+skiSide(170,86,.32,"#2f8fe0")+skiSide(250,86,.32,"#f4c542"))}
     if(o.race){p.push(`<g>${Array.from({length:14},(_,i)=>`<path d="M${130+i*19} 48l9 6-9 6z" fill="${["#ff3d7f","#ffd166","#2de2e6"][i%3]}"/>`).join("")}<path d="M128 48h270" stroke="#ddd"/></g><rect x="150" y="16" width="120" height="22" rx="4" fill="#111"/>`);g.push(neon(210,33,"RACE DAY","#ffd166",14))}
     if(n)g.push(`<circle cx="320" cy="26" r="9" fill="#f4f1de"/><path d="M300 100h40M310 108h22M316 116h10" stroke="#f4f1de" stroke-width="1.4" opacity=".5"/>`);
   }

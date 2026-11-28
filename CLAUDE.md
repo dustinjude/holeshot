@@ -51,7 +51,8 @@ checked and what you couldn't check.
   - `bridge.js`: everything the city needs from the racing, as `window.HS`, and the switch between the city's garage and
     tour and free play's (`cityOn`, `cityOff`, `PKEY`). See Side Hustle City below.
 - `src/city/`: Side Hustle City. `city.js` is one closure of its own, built to `dist/js/city.js` and loaded after the
-  game. **Do not join it into the game's scope**: it has its own `stage`, `reset`, `render`, `tick`, `log`, `S`, `P`, `L`.
+  game. `build.mjs` joins `art.js`, `ui.js`, `hustle.js`, `life.js`, `street.js` and `talk.js` into it at their `//@name`
+  lines, and `cast.json` at `/*@cast*/`, so they all share its scope. **Do not join it into the game's scope**: it has its own `stage`, `reset`, `render`, `tick`, `log`, `S`, `P`, `L`.
   `city.css` and `city.html` are put into a `<template id="cityT">` in the page (`/*@citycss*/`, `<!--@city-->`), which
   the script copies into a shadow root on `<div id="city">`, so the city's styles and the race's cannot meet.
 - `src/index.html` (markup, `/*@css*/` placeholder), `src/style.css`, `src/sw.js` (offline cache; the build fills
@@ -93,6 +94,35 @@ none of them is a character in the city.
 - `tourScore(order, out)` in shell.js books one moto; `finish()`, `hsSkip` and `hsRetire` all go through it.
 - Free play (Race, Tour, Drag ladder, Items, Crates) is the "Free play" button at the top of the city, and "Back to
   the city" on the setup plate returns. Check after any change to shell.js that free play behaves as it did.
+- **The screen** (rebuilt for phones in the second pass): a top bar that stays put (clock, cash, wanted stars, the phone,
+  five meters) and five tabs at the foot. **Here** (`hereView` in ui.js): a lit picture of the place (`scene` in art.js),
+  the faces of whoever is there (tap one to talk: `talkTo`), the newest log line, the most pressing thing elsewhere, and
+  the place's actions. **Map** (`mapView`, `mapBase`): the city by the hour, faces where people are, a marker where something
+  is waiting, a patrol car after dark at two stars and a boat at three; tapping a place walks the marker there (`travel`)
+  and switches to Here. **Hustles** (`hustleView` in hustle.js): every way to make money. **People** (`peopleView`): faces,
+  bond and trust, where each one is now. **You** (`youView`): the aim, money, skills, your life, the street log, Free play
+  and New life. The **phone** (`phoneView`, `PH`): Messages, Clout, Runner, Bank, News, Map, and Pike the lawyer once the
+  heat is on. Dialogs come up from the bottom and show the face of whoever they're about (`whoOf`).
+- **Faces** (`FACE`, `face(k, mood, size)` in art.js): every person, plus Reyes, Vance, Lena, Fitz, Carol, the IA woman and
+  a generic crew, drawn from a spec, with four expressions (up, flat, down, cold). All original.
+- **Who is where** (`SCHED`, `where(k)` in ui.js): each person keeps hours across the city. Talk buttons per place are gone;
+  you talk to whoever is there. Marcus has to be at the ramp for a drag run.
+- **Pop-ups** (`snap`, `deltas`, `toast`, `did1`): every tap that does something is wrapped in a before and after snapshot;
+  money, heat, rep, followers, skill levels and each person's bond and trust pop up when they change. Overnight changes go
+  to the **morning recap** (`EV.recap`, queued from `newDay`): yesterday's money, heat, people, the radio, today's happening
+  and the top of the list. Quiet synth sounds go with them; the speaker button in You turns them off (`shc.snd`).
+- **Next up** (`goals()` in ui.js, `GL` once per render): race day, promises, texts, rent, Sal, a clip to post, today's
+  happening, story beats waiting elsewhere (actions added with `hot` 2 in `A()`), the aim, and a nudge when nothing is
+  pressing. It drives the "Next" line on Here, the list under the map and the map's markers.
+- **Side hustles** (hustle.js): **Clout** (`S.cl`): races, drag wins, fights, getaways, the court and stunt sessions at the
+  Lake make clips (`clip`); posting one (`post`) brings followers (bigger the better the clip, sometimes viral; a getaway
+  clip brings heat), and invented sponsors (`SPON`) sign you at follower thresholds and pay every rent day while you keep
+  their terms (`sponsorWeek`). **Runner** (`S.gig`): delivery shifts from anywhere, about diner pay by the hour in the
+  truck, a rating to keep up, things that happen on a shift (`GIG`). **Tuning** (`S.tn`): once a day at Tommy's with
+  Wrenching 1: mild, hot or race maps, the hotter the riskier.
+- **Aims and happenings** (life.js): the aim (`S.asp`, `ASP`) is picked on day 1 and changeable from You; if you make it,
+  the season ends on it (`aimVerdict`). Happenings (`S.hap`, `HAP`) are rolled overnight: a block party at the court, a boat
+  show at the Lake, a double-purse fight night, checkpoints after dark, Sal paying top dollar.
 - Inside city.js: `S` is the save; `P` the characters' text and `S.pp` their state; `stage(k)` the relationship;
   `tick`, `newDay`, `dawn`, `morning` the clock; `ASK` the texts and `S.proms` the promises; `EV` the queued events;
   `A()` the actions for the place you are in; `motoCheck`, `dragMarcus`, `enterRace`, `raceDone`, `dragDone`, `cityBack`
@@ -200,6 +230,8 @@ Chris Macclugage #46, Dustin Charrier #40. Deven, Tory, Andre and GJ have placeh
   60 frames a second, the most a screen recording captures, at the old 2x pixel cap; the 3x top level
   (`QUAL` 3, saved as `o17.q`) is not yet confirmed on his phone.
 - Check phone sizes: 440x956 at 3x (his phone) and 390x780. Nothing may scroll sideways.
+- For screenshots of the city with its real fonts in a sandbox without Google Fonts, `tests/scratch/` (git-ignored) has
+  scripts that serve Bungee and Archivo from local copies.
 - After any change to the city or to bridge.js, run `npm run test:city` and `npm run test:season`. The city uses
   `Math.random`, so a city test must not depend on a street event not happening on the way somewhere.
 - After any change to `netlify/functions/talk.mts`, run `npm run test:talk`.

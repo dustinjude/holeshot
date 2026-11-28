@@ -4,7 +4,8 @@ Side Hustle City and jet ski closed-course racing from behind your ski. The app 
 jobs, hustles and people, with a race weekend every five days, your ski built at Tommy's Garage, and one wallet for all
 of it. The city is written for adults and asks once: crime, violence, drugs, strong language. It has runs
 from Harbor Patrol on the ski, product to move, a wanted level, a man called Vance who wants the docks, and people you
-can talk to in your own words, with Claude writing their replies. Free play has the racing on its own: race, tour weekends with an award ceremony, drag ladder, garage, and two
+can talk to in your own words, with Claude writing their replies. It's laid out for a phone: tabs for where you are, the
+map, your hustles, the people and yourself, a phone with apps, and a recap every morning. Free play has the racing on its own: race, tour weekends with an award ceremony, drag ladder, garage, and two
 arcade modes. Runs in the browser and installs to a phone's home screen as an app that works offline.
 
 ## Work on it

@@ -68,6 +68,9 @@ try {
   check(/Day 1/.test(c.modal || ''), 'then the first-day note shows');
   check(c.cash === '$200', 'a new life starts with $200');
   await press("Let's go");
+  check(/What are you here for/.test((await city()).modal || ''), 'then it asks what you came here to do');
+  await press('Champion');
+  check(await page.evaluate(() => JSON.parse(localStorage.getItem('shc')).asp) === 'champ' && !(await city()).modal, 'the aim is set and the city is clear');
   await page.screenshot({path: join(OUT, 'city.png')});
   check(await page.evaluate(() => { const r = document.getElementById('city').shadowRoot, b = r.querySelector('[data-a]').getBoundingClientRect(); return b.bottom < innerHeight - 70; }), 'the first thing to do is on screen without scrolling');
   for (const k of ['map', 'hustle', 'people', 'you']) {
@@ -244,6 +247,13 @@ try {
   check((await city()).log.some(l => /idles like a sewing machine/.test(l)), 'a mild map is safe money');
   await tabTo('hustle'); let c0 = (await city()).cash; await press('Start a shift'); await closeModals();
   check((await page.evaluate(() => JSON.parse(localStorage.getItem('shc')).gig.runs)) > 0, 'a Runner shift does deliveries: ' + c0 + ' to ' + (await city()).cash);
+  await tabTo('you');
+  check(await page.evaluate(() => /Champion/.test(document.getElementById('city').shadowRoot.querySelector('.aim').textContent)), 'You shows the aim and how close you are');
+  await setUp({top: {hap: {id: 'party', day: 21}, h: 17, at: 'court'}, pp: {marcus: {met: 1, b: 30, t: 50, seen: 21}}}); await fresh();
+  c = await city();
+  check(c.acts.some(a => /Hit the block party/.test(a)) && await page.evaluate(() => !!document.getElementById('city').shadowRoot.querySelector('[data-who="marcus"]')), 'a block party at the court, with Marcus at it');
+  await press('Hit the block party'); await closeModals();
+  check((await city()).log.some(l => /dance-off/.test(l)), 'the party happens');
   await tabTo('here'); await goTo('home'); await press('Sleep');
   c = await city(); for (let i = 0; i < 6 && c.modal && !/^Day \d+/.test(c.modal); i++) { await page.evaluate(() => { const b = [...document.getElementById('city').shadowRoot.querySelectorAll('[data-ch]:not([disabled])')]; b[b.length - 1].click(); }); c = await city(); }
   check(/^Day \d+/.test(c.modal || '') && /Money/.test(c.modal), 'waking up brings the recap: ' + (c.modal || '').slice(0, 80));
