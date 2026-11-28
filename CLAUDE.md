@@ -200,10 +200,12 @@ The city's places and people are photographs where one exists, and the drawings 
   picture made (`photoWall`). The map and the icons stay drawn.
 - **Rules for the prompts.** Every person is an invented adult with a stated age; no real people, no one from the roster, no
   brands or logos, nothing sexual, no recognizable faces in the places. tests/art.mjs checks the words; do not loosen them.
-- **Not proven.** No picture has been made yet from here: the sandbox cannot reach the gateway, and deploy previews sit behind
-  the Netlify login. The logic is tested against a fake store and a fake model, and the layout against placeholders. What
-  the real pictures look like, how long they take, and whether the Image CDN reads them from the function as its docs say
-  will first be seen on a deployed site. Review them there (You, "See all") and fix a bad one by changing its prompt.
+- **Proven and not.** Making works on the live site: the first pictures were made there on Nov 28 2026 (the diner by day
+  and night, Rosa, Nia, Dex), about 10 to 15 seconds each, and they are served through the Image CDN as planned. Only the
+  diner by day and Rosa's small portrait have been looked at. The rest are made as people play, or all at once from You,
+  "Make the rest now", which Dustin presses himself because it spends his credits. Once all 65 exist, review every one
+  (You, "See all") and fix a bad one by changing its prompt. The sandbox still cannot reach the gateway, and deploy previews
+  sit behind the Netlify login, so pictures can only be made and seen on the live site.
 
 ## Modes
 
