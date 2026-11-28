@@ -160,23 +160,27 @@ export function gemini(env: Env, fetchFn: typeof fetch = fetch): Gen {
     const parts: any[] = [];
     if (base) parts.push({ inlineData: { mimeType: base.type, data: Buffer.from(base.data).toString("base64") } });
     parts.push({ text: spec.p });
-    const ask = (model: string, shape: boolean) => fetchFn(`${(env("GOOGLE_GEMINI_BASE_URL") || "").replace(/\/+$/, "")}/v1beta/models/${model}:generateContent`, {
+    // How the picture's shape and size are asked for, from the full form down to the plainest, for a model that refuses one:
+    // 2 names the shape and the size (1K: about a thousand pixels on the short side), 1 the shape only, 0 neither (the prompt
+    // names the shape too) and allows words beside the picture.
+    const form = (level: number) => level === 2 ? { responseModalities: ["IMAGE"], imageConfig: { aspectRatio: spec.ar, imageSize: "1K" } }
+      : level === 1 ? { responseModalities: ["IMAGE"], imageConfig: { aspectRatio: spec.ar } } : { responseModalities: ["TEXT", "IMAGE"] };
+    const ask = (model: string, level: number) => fetchFn(`${(env("GOOGLE_GEMINI_BASE_URL") || "").replace(/\/+$/, "")}/v1beta/models/${model}:generateContent`, {
       method: "POST",
       headers: { "content-type": "application/json", "x-goog-api-key": env("GEMINI_API_KEY") || "" },
-      // the plain form (no shape setting, words allowed beside the picture) is for a model that refuses the first
-      body: JSON.stringify({ contents: [{ role: "user", parts }], generationConfig: shape ? { responseModalities: ["IMAGE"], imageConfig: { aspectRatio: spec.ar } } : { responseModalities: ["TEXT", "IMAGE"] } }),
+      body: JSON.stringify({ contents: [{ role: "user", parts }], generationConfig: form(level) }),
       signal: AbortSignal.timeout(120_000),   // generous: this runs in a background function, which has minutes
     });
-    let r: Response, shape = true;
+    let r: Response, level = 2;
     for (;;) {
-      try { r = await ask(models[at], shape); }
+      try { r = await ask(models[at], level); }
       catch (e: any) { throw new GenError("no answer from the gateway: " + (e?.name || e?.message || e), true, 30); }
       if (r.ok) break;
       const why = (await r.text().catch(() => "")).slice(0, 300);
       if (r.status === 429) throw new GenError("the gateway is rate-limited", true, 60);
-      if (r.status === 404 && (at < models.length - 1 || await more())) { at++; shape = true; continue; }   // not a model this gateway has
-      if (r.status === 400 && shape) { shape = false; continue; }   // a model without the shape setting: the prompt names the shape too
-      if (r.status === 400 && at < models.length - 1) { at++; shape = true; continue; }
+      if (r.status === 404 && (at < models.length - 1 || await more())) { at++; level = 2; continue; }   // not a model this gateway has
+      if (r.status === 400 && level > 0) { level--; continue; }   // perhaps a model without that setting: ask more plainly
+      if (r.status === 400 && at < models.length - 1) { at++; level = 2; continue; }
       // refused or broken before any picture was made: nothing was spent, so try again later rather than count it
       throw new GenError(`gateway ${r.status} from ${models[at]}: ${why}`, true, r.status === 400 || r.status === 404 ? 600 : 120);
     }
