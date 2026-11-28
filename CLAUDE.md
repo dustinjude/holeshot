@@ -20,12 +20,16 @@ checked and what you couldn't check.
 - `npm run test:city`: plays the city in headless Chrome and goes through it into the garage, an open race, a drag run, a
   whole race weekend, a retirement, a missed weekend, and free play. It drives time with the test hooks, so it is not
   slowed by software rendering.
+- `npm run test:season`: bots play whole seasons of the city (racing stubbed) and report crashes, dead ends, and how the money
+  and the heat ran. `node tests/season.mjs 40 --list` plays more and lists every dialog seen.
+- `npm run test:talk`: checks the function that writes the characters' live lines, without the network.
+- `node tools/chase.mjs [site]`: runs from the law in Node, for tuning the `CHASE_` constants in core.js.
 - `npm run model -- <file.glb> <name>`: shrink a 3D model into `models/<name>/` (see Models).
 
 ## Layout
 
 - `src/game/*.js`: the game. `build.mjs` joins them into one strict-mode IIFE, `dist/js/game.js`: `core.js` first,
-  then `shell.js`, which has one marker line each (`//@arcade`, `//@draw`, `//@r3`, `//@party`, `//@bridge`) where those files
+  then `shell.js`, which has one marker line each (`//@arcade`, `//@draw`, `//@r3`, `//@party`, `//@run`, `//@bridge`) where those files
   are inserted. Everything shares one scope, so a function in one file calls one in another directly, and top-level
   `const`s are initialised in that order.
   - `core.js`: game logic, no DOM. Racers, crafts, garage parts, the 11 courses in `SITES` plus the drag strip,
@@ -42,6 +46,8 @@ checked and what you couldn't check.
     `g3Emit` spray; `render3` camera and frame; fireworks and podium (`g3Fw*`, `g3Cer*`); racers' own models
     (`MODELS`, `g3Models`, `g3UseModels`); painted ski models (`BASES`, `g3Bases`, `g3UseBases`, `skinPrep`, `skinPaint`).
   - `arcade.js`: the item race and the crate run. `party.js`: the win celebration and the award ceremony.
+  - `run.js`: runs from the law, reached only from the city: what the player sees and hears and what the city is told.
+    The logic is in core.js (`runGrid`, `chaseStep`, and `aiDrive` for a ski marked `hunt`).
   - `bridge.js`: everything the city needs from the racing, as `window.HS`, and the switch between the city's garage and
     tour and free play's (`cityOn`, `cityOff`, `PKEY`). See Side Hustle City below.
 - `src/city/`: Side Hustle City. `city.js` is one closure of its own, built to `dist/js/city.js` and loaded after the
@@ -91,8 +97,40 @@ none of them is a character in the city.
   `tick`, `newDay`, `dawn`, `morning` the clock; `ASK` the texts and `S.proms` the promises; `EV` the queued events;
   `A()` the actions for the place you are in; `motoCheck`, `dragMarcus`, `enterRace`, `raceDone`, `dragDone`, `cityBack`
   where it meets the racing.
-- Not proven: nobody has played a whole season for balance (prize money against rent and parts, how fast bonds grow),
-  and the city has not been judged on the phone yet.
+- Not proven: no person has played a whole season. The bots finish seasons without crashes or dead ends, and a bot that
+  works and races ends a season with a few thousand dollars, but they cannot say whether it is fun, whether the chase is
+  fair in the hand, or how the phone layout feels. The live lines have never been called for real from here: the function's
+  logic is tested with a fake client, and the first real call will be on the deployed site.
+
+### The street, runs from the law, and live lines
+
+- **Runs from the law** (`HS.open({mode:'run', run:{type, name, site, rev, laps, cops, level, pace}})`). `type` is `drop` (a
+  load on the ski: every ram and crooked landing costs some of it) or `chase` (nothing to lose but the law). It skips the
+  pits and goes straight to the line. Patrol skis (`cop`, `hunt`) launch behind at intervals, steer at the player, ram, drop
+  back and come again. `wd.run.bust` is the gauge: it fills while one is within `CHASE_R`, fastest when the player is slow,
+  jumps on a ram, drains in clear water; at 100 they have you. The city is told `{kind:'run', ok, how:'made'|'lost'|'bust'|
+  'quit', cargo, hits}`. `lawFor()` in street.js turns the wanted level into how many patrol skis and how good (1 at level 0
+  up to 4 at level 3). Tuned with the Node bot only: a bare ski should cope with one or two stars, three wants parts, five
+  wants a built ski. Not yet felt by a person on a phone.
+- **`src/city/street.js`** (joined into city.js at `//@street`, state in `S.z`): Dex's package and night runs by water, a
+  getaway from a stop at the docks or the Lake, product to buy from Dex and sell around town (`GOODS`, `SPOTS`, prices move
+  daily), using it (habit, crash), a lawyer on the phone, detectives at three stars, a respray when Harbor Patrol knows the
+  ski, somewhere better to live (`PAD`), work from Sal (collections, the marina job), blackjack and a stranger at the Low
+  End after 9, a gun (`piece`) that changes how being cornered ends, morning radio (`news()`), and Vance (`S.z.v`, see the
+  comment above `noDex`): he wants the docks, Dex can die, and it ends by the book (Kowalski), in fire (allies), or with you
+  holding the docks for him. The first raid costs a week and half the money; the second is the end.
+- **Live lines** (`src/city/talk.js` at `//@talk`, `netlify/functions/talk.mts`, served at `/api/talk`): "Say something in your
+  own words" in any conversation. Claude writes the reply in character, through Netlify's AI Gateway, so there is no key in
+  the repo or the browser. The rules are in the function: adults, strong language and crime are in; **nothing sexually
+  explicit** (Anthropic's Usage Policy rules out sex acts and erotic chat, with no exception for adult products), no
+  real-world how-to, no real people. Do not loosen them. The browser sends short fields only; the characters (`cast.json`,
+  shared with the city through `/*@cast*/`) and the sentences for world facts (`FLAGS`) live on the server. Replies are forced
+  into `{say, bond, trust, mood, note}`, clamped on both sides, escaped before they reach `innerHTML`, capped per visit, per
+  day and per person, and rate-limited per visitor. With no connection or no gateway the option disappears.
+  **It spends the site's Netlify credits**: a small model, a few hundred tokens a line. `HS_TALK_MODEL` overrides the model.
+- **18 or older**: the city asks once (`shc.adult`); saying no leaves free play. The real roster stays out of every storyline.
+- **Phone layout**: the status strip stays at the top, a tab bar at the foot switches City, People, You and Log, and the newest
+  log line shows above the place you are in.
 
 ## Modes
 
@@ -161,7 +199,11 @@ Chris Macclugage #46, Dustin Charrier #40. Deven, Tory, Andre and GJ have placeh
   60 frames a second, the most a screen recording captures, at the old 2x pixel cap; the 3x top level
   (`QUAL` 3, saved as `o17.q`) is not yet confirmed on his phone.
 - Check phone sizes: 440x956 at 3x (his phone) and 390x780. Nothing may scroll sideways.
-- After any change to the city or to bridge.js, run `npm run test:city`. `npm test` (the racing smoke test) steps out
+- After any change to the city or to bridge.js, run `npm run test:city` and `npm run test:season`. The city uses
+  `Math.random`, so a city test must not depend on a street event not happening on the way somewhere.
+- After any change to `netlify/functions/talk.mts`, run `npm run test:talk`.
+- After any change to the chase in core.js, run `node tools/chase.mjs` as well as the sim: ordinary races must come out
+  exactly as before (`node tools/sim.mjs havasu` before and after, compared). `npm test` (the racing smoke test) steps out
   of the city to free play first; on a machine with only software rendering it can time out waiting for frames at 3x.
 
 ## Conventions

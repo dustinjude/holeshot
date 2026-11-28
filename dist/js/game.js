@@ -4654,7 +4654,8 @@ function runHud(){
 function runOverlay(){
   const R=wd.run; if(!R||mode==='done') return;
   ctx.setTransform(DPR,0,0,DPR,0,0);
-  const w=Math.min(200,W-182), x=16, y=hudBottom+12, on=R.near>0, lit=Math.floor(clock*6)%2;
+  // it sits between the pause button and the course map
+  const w=Math.min(200,W-224), x=70, y=hudBottom+10, on=R.near>0, lit=Math.floor(clock*6)%2;
   ctx.fillStyle='rgba(6,32,42,.6)'; ctx.fillRect(x-3,y-3,w+6,16);
   ctx.fillStyle=on?(lit?'#e4392c':'#2f6fe4'):'#f1b53c'; ctx.fillRect(x,y,w*R.bust/100,10);
   ctx.font="800 12px 'Barlow Condensed','Arial Narrow',sans-serif"; ctx.textAlign='left'; ctx.textBaseline='top';

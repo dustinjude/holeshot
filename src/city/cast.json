@@ -1,0 +1,172 @@
+{
+ "rosa": {
+  "n": "Rosa",
+  "role": "runs Lucky's",
+  "g": "she",
+  "treat": [
+   "Bring flowers for the counter",
+   18
+  ],
+  "mood": {
+   "up": "Rosa's humming with the radio and overfilling every coffee.",
+   "flat": "Rosa's working the register with her reading glasses on.",
+   "down": "Rosa's slamming plates around. Nobody at the counter is making eye contact."
+  },
+  "know": [
+   "She opened Lucky's with her ex-husband. He got the boat. She got the debt.",
+   "She feeds half the block on credit and has never written a single tab down.",
+   "She wants to leave the place to somebody who'd keep the name. She's looking at you when she says it."
+  ],
+  "cold": "Rosa sees you and turns the coffee pot upside down. \"Kitchen's closed. For you.\"",
+  "v": "Warm and bossy. Feeds people as a way of arguing with them. Short sentences, dry humor, no patience for excuses. Worries out loud about the diner."
+ },
+ "nia": {
+  "n": "Nia",
+  "role": "bartender",
+  "g": "she",
+  "rom": 1,
+  "treat": [
+   "Buy her a shot",
+   24
+  ],
+  "mood": {
+   "up": "Nia's dancing a little behind the bar and pretending she isn't.",
+   "flat": "Nia's wiping down the same glass, half watching the door.",
+   "down": "Nia's got her jaw set and her phone face down. She's pouring heavy."
+  },
+  "know": [
+   "She's been saving tips for the nursing program at the community college. Three years of it, in a coffee can.",
+   "Her little brother's in county on a possession charge. She visits every Sunday and tells her mom he's fine.",
+   "Marcus is her cousin. She taught him to drive stick in the Lucky's parking lot and has regretted it since."
+  ],
+  "cold": "Nia sets your drink down without a word and walks to the far end of the bar.",
+  "v": "Quick, teasing, guarded. Hears everything from behind the bar and gives away very little. Swears easily. Softer when she is tired."
+ },
+ "dex": {
+  "n": "Dex",
+  "role": "fence",
+  "g": "he",
+  "treat": [
+   "Bring him sunflower seeds",
+   5
+  ],
+  "mood": {
+   "up": "Dex is in a good mood, which mostly means he's talking with his mouth full.",
+   "flat": "Dex is reading the paper through his glasses, shelling seeds.",
+   "down": "Dex keeps checking the door. He's switched to decaf, which is worse."
+  },
+  "know": [
+   "He drove a city bus for nineteen years. Says the routes are why he knows every alley.",
+   "He has a daughter in Phoenix who thinks he sells restaurant equipment.",
+   "He's scared of somebody. He won't say who, but he never does business on a Tuesday."
+  ],
+  "cold": "Dex folds his paper. \"I don't know you. Walk.\"",
+  "v": "Low voice, careful, a little amused. Talks in sideways advice and old bus-driver stories. Never says anything he could be quoted on."
+ },
+ "marcus": {
+  "n": "Marcus",
+  "role": "rival rider",
+  "g": "he",
+  "treat": [
+   "Buy him a jug of race gas",
+   60
+  ],
+  "mood": {
+   "up": "Marcus is holding court on the tailgate of his truck, crew laughing at everything.",
+   "flat": "Marcus is checking his wear ring with a flashlight, earbuds in.",
+   "down": "Marcus is sitting on his ski at the bottom of the ramp, engine off, not launching."
+  },
+  "know": [
+   "June taught him to box when he was twelve so he'd stop fighting in parking lots.",
+   "He built his ski out of three wrecked ones. He can tell you which bolt came from which.",
+   "He's never left the state. He races because for three laps it feels like going somewhere."
+  ],
+  "cold": "Marcus doesn't turn around. His crew does. \"You lost?\"",
+  "v": "Loud, proud, competitive, funny. Trash talk is how he says hello. Underneath it he wants to be taken seriously as a rider."
+ },
+ "sal": {
+  "n": "Sal",
+  "role": "pawnbroker, lender",
+  "g": "he",
+  "treat": [
+   "Bring him an espresso",
+   6
+  ],
+  "mood": {
+   "up": "Sal's counting a thick stack and whistling opera.",
+   "flat": "Sal's got the loupe in his eye, pricing somebody's bad week.",
+   "down": "Sal's on the phone, very quiet. That's when he's angriest."
+  },
+  "know": [
+   "Gold Line was his mother's jewelry store. He kept her name on the license.",
+   "He's never raised his own hand to anybody. He considers that a point of honor.",
+   "His nephew is supposed to take over. Sal thinks the kid is soft, and he's privately glad."
+  ],
+  "cold": "Sal doesn't look up. \"Buying or selling. I got nothing else for you.\"",
+  "v": "Polite, precise, old-fashioned. Never raises his voice. Everything is a transaction and he says so pleasantly. Dry opera-fan wit."
+ },
+ "june": {
+  "n": "June",
+  "role": "runs the Iron Den",
+  "g": "she",
+  "rom": 1,
+  "treat": [
+   "Buy the gym a new heavy bag",
+   90
+  ],
+  "mood": {
+   "up": "June's shadowboxing between rounds of yelling at people. Good day.",
+   "flat": "June's taping somebody's hands, not saying much.",
+   "down": "June's sitting on the ring apron, staring at an unpaid power bill."
+  },
+  "know": [
+   "She went 14 and 2 as a pro. The two were the same woman. She still has the tape.",
+   "She's kept the gym free for kids under sixteen since the day she bought it.",
+   "She trains Tasha, sixteen, like a daughter. First fight's coming and June can't sleep."
+  ],
+  "cold": "June points at the door with a focus mitt. \"Not in my gym.\"",
+  "v": "Blunt, sparing with words, a coach to the bone. Says hard things plainly and kind things almost never. Respects people who show up."
+ },
+ "tommy": {
+  "n": "Tommy",
+  "role": "owns the garage",
+  "g": "he",
+  "treat": [
+   "Bring coffee and a bear claw",
+   9
+  ],
+  "mood": {
+   "up": "Tommy's got the radio on the oldies station and a rare smile.",
+   "flat": "Tommy's under a hood, grunting at a seized bolt.",
+   "down": "Tommy's sitting on an upturned bucket holding his lower back."
+  },
+  "know": [
+   "He's rebuilt every pump and supercharger on this lake since 1979. He can hear a bad wear ring from the parking lot.",
+   "His wife did the books until she passed. He hasn't opened the ledger since.",
+   "He doesn't have kids. He's been waiting for somebody worth handing the keys to."
+  ],
+  "cold": "Tommy wipes his hands and keeps wiping. \"We're full up. Try somewhere else.\"",
+  "v": "Gruff, tired, grumbles in shop talk. Compliments come out sideways. Goes quiet about his wife. Loves the machines more than he will say."
+ },
+ "kow": {
+  "n": "Kowalski",
+  "role": "beat cop",
+  "g": "he",
+  "treat": [
+   "Pick up his coffee",
+   4
+  ],
+  "mood": {
+   "up": "Kowalski's telling Rosa a joke at the counter. She's heard it.",
+   "flat": "Kowalski's doing the crossword in pen.",
+   "down": "Kowalski's stirring his coffee and not drinking it."
+  },
+  "know": [
+   "Twenty-two years on the same six blocks. He knows whose kid you are before you say it.",
+   "He's four years from a pension and has stopped pretending the job is what he signed up for.",
+   "He lets slip that his best source on the docks eats a lot of sunflower seeds."
+  ],
+  "cold": "Kowalski sets his cup down. \"Sit somewhere else.\"",
+  "v": "Weary beat cop, deadpan. Has heard every story and says so. Dry, patient, not cruel. Counts the years to his pension."
+ }
+}
