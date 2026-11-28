@@ -28,6 +28,8 @@ try {
   await page.goto('http://localhost:8765/');
   await page.waitForFunction(() => window.__hs && window.__hs.state().models.length >= 2, null, {timeout: 20000})
     .catch(() => fail.push('models did not load'));
+  // the app opens in Side Hustle City: this test is about the racing, so it steps out to free play first
+  await page.evaluate(() => window.CITY && window.CITY.leave());
   let s = await st();
   console.log('loaded:', JSON.stringify(s));
   if (!s.gl) fail.push('no WebGL: the 3D view did not start');

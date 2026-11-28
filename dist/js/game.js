@@ -702,7 +702,7 @@ const el={};
 for(const id of ['pos','posN','lap','lapN','time','mph','rpm','revFill','flow','flash','pauseBtn','gapA','gapB',
   'banner','banT','banH','start','result','pause','go','quit','again','swap','place','board','sum','stats','setup','resEyebrow',
   'padL','padR','hud','list','rules','panel','ride','modeS','modeT','tabR','tabC','tabS','tabH','optsMore','optsPause',
-  'lvLabel','resume','restart','toSetup','garage','tabG','modeD','modeI','modeC','podBtn','cer','cerEyebrow','cerTitle','cerList','cerGo']) el[id]=$(id);
+  'lvLabel','resume','restart','toSetup','garage','tabG','modeD','modeI','modeC','podBtn','cer','cerEyebrow','cerTitle','cerList','cerGo','toCity','startEyebrow']) el[id]=$(id);
 const COL={foam:'#f1fbf8',ink:'#06202a',red:'#e4392c',yellow:'#ffc62a'};
 const KEY='holeshot.';
 const RSTAT=[['launch','Launch',.9,1.16],['corner','Corners',.9,1.16],['chopR','Rough',.9,1.18]];
@@ -816,14 +816,19 @@ function build(ci){
   if(!Array.isArray(b.d)||b.d.length!==DRAG_PARTS.length) b.d=DRAG_PARTS.map(()=>0);       // drag parts came later: older builds start with none
   return b;
 }
-function saveGar(){store('garage1',JSON.stringify(gar));}
+function saveGar(){store(PKEY('garage1'),JSON.stringify(gar));}
 function loadGar(){
-  try{const g=JSON.parse(load('garage1')); if(g&&g.cash>=0&&g.cls>=0&&g.cls<CLASSES.length&&g.crafts&&typeof g.crafts==='object') gar=g;}catch(e){}
+  // the city's garage holds no cash of its own: its money is the city's, so only the class and the builds are read back
+  try{
+    const g=JSON.parse(load(PKEY('garage1')));
+    if(!g||!(g.cls>=0&&g.cls<CLASSES.length)||!g.crafts||typeof g.crafts!=='object') return;
+    if(HX.on){gar.cls=g.cls; gar.crafts=g.crafts;} else if(g.cash>=0) gar=g;
+  }catch(e){}
 }
-function playerMod(){const b=build(myCraft()), cap=CLASSES[gar.cls].cap; return garageMod(b.p.map(l=>Math.min(l,cap)),b.s,b.w);}
+function playerMod(){const b=build(myCraft()), cap=CLASSES[gar.cls].cap; const m=garageMod(b.p.map(l=>Math.min(l,cap)),b.s,b.w); m.top*=HX.top; m.turn*=HX.turn; return m;}
 // the field is built to the limit of the class
 function rivalMod(){const cap=CLASSES[gar.cls].cap; return garageMod(PARTS.map(()=>cap),null,null);}
-function serviceCost(k,b){return SERVICE[k]+(k===1?250*b.p[3]:0);}
+function serviceCost(k,b){return Math.round((SERVICE[k]+(k===1?250*b.p[3]:0))*HX.svc/10)*10;}
 function garChanged(){if(mode==='idle') reset(); summary(); buildGarage();}
 function buildGarage(){
   const box=el.garage, b=build(myCraft()), cap=CLASSES[gar.cls].cap;
@@ -833,14 +838,15 @@ function buildGarage(){
   const cl=E('div','tabs three');
   CLASSES.forEach((c,i)=>{const t=E('button','tab',c.name); t.id='cls'+i; t.setAttribute('aria-pressed',String(i===gar.cls)); t.addEventListener('click',()=>{gar.cls=i; saveGar(); garChanged();}); cl.appendChild(t);});
   box.append(cl,E('p','fine',CLASSES[gar.cls].name+' class: parts count up to level '+cap+', and the whole field is built to that limit. A win against Pro rivals pays '+money(PURSE[0]*CLASSES[gar.cls].pay)+'.'));
-  box.appendChild(E('div','eyebrow','Parts'));
+  // in the city, parts are bought at Tommy's Garage only, at whatever price the city has earned there
+  box.appendChild(E('div','eyebrow',HX.shop?'Parts'+(HX.disc<1?' · '+Math.round((1-HX.disc)*100)+'% off, shop price':''):'Parts · bought and fitted at Tommy\'s Garage'));
   PARTS.forEach((p,i)=>{
     const row=E('div','grow'), l=b.p[i], left=E('div'), nm=E('b',null,p.name), pips=E('span','pips');
     for(let k=0;k<3;k++){const d=E('i'); if(k<l) d.className=k<cap?'on':'over'; pips.appendChild(d);}
     nm.appendChild(pips);
     left.append(nm,E('small',null,(p.by?p.by+'. ':'')+p.note+'.'+(l>cap?' Above the class limit: level '+l+' does not count here.':'')));
-    const bt=E('button','gbtn',l>=3?'Maxed':'Level '+(l+1)+' '+money(p.cost[l])); bt.id='buy'+i; bt.disabled=l>=3||gar.cash<p.cost[l];
-    bt.addEventListener('click',()=>{const n=b.p[i]; if(n<3&&gar.cash>=p.cost[n]){gar.cash-=p.cost[n]; b.p[i]=n+1; saveGar(); blip(660,.08,'square',.08); garChanged();}});
+    const bt=E('button','gbtn',l>=3?'Maxed':'Level '+(l+1)+' '+money(pcost(p,l))); bt.id='buy'+i; bt.disabled=l>=3||!HX.shop||gar.cash<pcost(p,l);
+    bt.addEventListener('click',()=>{const n=b.p[i]; if(n<3&&HX.shop&&gar.cash>=pcost(p,n)){gar.cash-=pcost(p,n); b.p[i]=n+1; saveGar(); blip(660,.08,'square',.08); garChanged();}});
     row.append(left,bt); box.appendChild(row);
   });
   // drag parts: they only count on the strip, and the class limit does not apply to them
@@ -851,8 +857,8 @@ function buildGarage(){
     for(let k=0;k<3;k++){const d=E('i'); if(k<l) d.className='on'; pips.appendChild(d);}
     nm.appendChild(pips);
     left.append(nm,E('small',null,(p.by?p.by+'. ':'')+p.note+'.'));
-    const bt=E('button','gbtn',l>=3?'Maxed':'Level '+(l+1)+' '+money(p.cost[l])); bt.id='dbuy'+i; bt.disabled=l>=3||gar.cash<p.cost[l];
-    bt.addEventListener('click',()=>{const n=b.d[i]; if(n<3&&gar.cash>=p.cost[n]){gar.cash-=p.cost[n]; b.d[i]=n+1; saveGar(); blip(660,.08,'square',.08); garChanged();}});
+    const bt=E('button','gbtn',l>=3?'Maxed':'Level '+(l+1)+' '+money(pcost(p,l))); bt.id='dbuy'+i; bt.disabled=l>=3||!HX.shop||gar.cash<pcost(p,l);
+    bt.addEventListener('click',()=>{const n=b.d[i]; if(n<3&&HX.shop&&gar.cash>=pcost(p,n)){gar.cash-=pcost(p,n); b.d[i]=n+1; saveGar(); blip(660,.08,'square',.08); garChanged();}});
     row.append(left,bt); box.appendChild(row);
   });
   box.appendChild(E('div','eyebrow','Setup'));
@@ -912,7 +918,7 @@ function paceName(p){return p<.31?'Easy':p<.64?'Medium':p<.89?'Hard':'Pro';}
 // Auto: win and the field gets quicker, by more the easier the win; finish down the order and it eases off.
 function autoAdjust(p,margin){
   const d=p===1?(margin>4?.16:margin>1.5?.1:.05):p<=3?0:p<=5?-.06:p<=7?-.11:-.16, was=autoPace;
-  autoPace=clamp(autoPace+d,0,1); store('o8.pace',autoPace.toFixed(3));
+  autoPace=clamp(autoPace+d,0,1); store(PKEY('o8.pace'),autoPace.toFixed(3));
   return autoPace-was;
 }
 
@@ -920,13 +926,31 @@ function autoAdjust(p,margin){
 function tourLive(){return tour.round>0&&tour.round<MOTOS;}
 function tStop(){return Math.min(TOUR.length-1,Math.floor(tour.round/2));}
 function freshTour(){return {round:0,pts:RACERS.map(()=>0),wk:RACERS.map(()=>0),m1:null,m2:null,last:null,hist:[],r:sel.r,c:sel.c};}
-function saveTour(){store('tour13',JSON.stringify(tour));}
+function saveTour(){store(PKEY('tour13'),JSON.stringify(tour));}
 function loadTour(){
   try{
-    const t=JSON.parse(load('tour13'));
+    const t=JSON.parse(load(PKEY('tour13')));
     if(t&&Array.isArray(t.pts)&&t.pts.length===RACERS.length&&Array.isArray(t.wk)&&t.wk.length===RACERS.length&&Array.isArray(t.hist)&&t.round>=0&&t.round<=MOTOS&&(t.round%2===0||Array.isArray(t.m1))&&
        t.r>=0&&t.r<RACERS.length&&t.c>=0&&t.c<CRAFTS.length) tour=t;
   }catch(e){}
+}
+// Book one moto. ris: the racers in finishing order. out, if given, is a rider who did not finish and scores nothing.
+function tourScore(ris,out){
+  const moto=tour.round%2;
+  if(moto===0){tour.wk=RACERS.map(()=>0); tour.m1=null; tour.m2=null;}
+  ris.forEach((ri,i)=>{if(ri!==out) tour.wk[ri]+=PTS[i];});
+  if(moto===0) tour.m1=ris.slice();
+  else{
+    // the weekend overall: moto points added up, a tie going to whoever finished moto 2 ahead. It pays series points.
+    tour.m2=ris.slice();
+    const p1=RACERS.map(()=>0), p2=RACERS.map(()=>0);
+    tour.m1.forEach((ri,i)=>{p1[ri]=i+1;}); tour.m2.forEach((ri,i)=>{p2[ri]=i+1;});
+    const ord=RACERS.map((r,i)=>i).sort((a,b)=>tour.wk[b]-tour.wk[a]||p2[a]-p2[b]);
+    ord.forEach((ri,i)=>{tour.pts[ri]+=PTS[i];});
+    tour.last={stop:tStop(),ord,wk:tour.wk.slice(),p1,p2};
+    tour.hist.push(ord.indexOf(tour.r)+1);
+  }
+  tour.round++; saveTour();
 }
 // load the course for whatever is up next
 function stage(){
@@ -1008,22 +1032,7 @@ function finish(){
   rows.sort((a,b)=>a.t-b.t);
   const p=rows.findIndex(r=>r.me)+1, inTour=gmode==='tour', moto=tour.round%2, stopNo=tStop()+1, win=rows[0].t;
   lastRows=rows;
-  if(inTour){
-    if(moto===0){tour.wk=RACERS.map(()=>0); tour.m1=null; tour.m2=null;}
-    rows.forEach((r,i)=>{tour.wk[r.ri]+=PTS[i];});
-    if(moto===0) tour.m1=rows.map(r=>r.ri);
-    else{
-      // the weekend overall: moto points added up, a tie going to whoever finished moto 2 ahead. It pays series points.
-      tour.m2=rows.map(r=>r.ri);
-      const p1=RACERS.map(()=>0), p2=RACERS.map(()=>0);
-      tour.m1.forEach((ri,i)=>{p1[ri]=i+1;}); tour.m2.forEach((ri,i)=>{p2[ri]=i+1;});
-      const ord=RACERS.map((r,i)=>i).sort((a,b)=>tour.wk[b]-tour.wk[a]||p2[a]-p2[b]);
-      ord.forEach((ri,i)=>{tour.pts[ri]+=PTS[i];});
-      tour.last={stop:tStop(),ord,wk:tour.wk.slice(),p1,p2};
-      tour.hist.push(ord.indexOf(tour.r)+1);
-    }
-    tour.round++; saveTour();
-  }
+  if(inTour) tourScore(rows.map(r=>r.ri));
   el.place.textContent=ordinal(p);
   el.resEyebrow.textContent=(inTour?'Round '+stopNo+' · Moto '+(moto+1):'Checkered flag')+' · '+site.name+(rev?' reverse':'');
   statCells([['Best lap',bestLap>0?fmt(bestLap):'–'],['Fastest',Math.round(stat.vmax*MPH)+' mph'],['Clean buoys',stat.clean+' of '+stat.turns],['Rivals',paceName(racePace)]]);
@@ -1041,7 +1050,7 @@ function finish(){
   }
   if(!tip&&p>1&&stat.clean<stat.turns/2) tip=' Take the turn buoys close on the inside to build flow and carry more speed.';
   // prize money, and what the race took out of the ski
-  const gb=build(myCraft()), prize=Math.round(PURSE[p-1]*CLASSES[gar.cls].pay*(.3+.7*racePace)/10)*10;
+  const gb=build(myCraft()), prize=Math.round(PURSE[p-1]*CLASSES[gar.cls].pay*(.3+.7*racePace)*HX.purse/10)*10;
   gar.cash+=prize;
   gb.w[0]=Math.max(0,gb.w[0]-(4+.2*stat.rough)); gb.w[1]=Math.max(0,gb.w[1]-(3+1.5*gb.p[3])); gb.w[2]=Math.max(0,gb.w[2]-(3+1.2*stat.off+.1*stat.rough));
   saveGar();
@@ -1049,9 +1058,16 @@ function finish(){
   el.sum.textContent='Your time '+fmt(finT)+'. Prize '+money(prize)+'.'+(record&&best>0?' New personal best here.':'')+tired+tip;
   el.podBtn.hidden=inTour;
   if(inTour){el.again.textContent=moto?'Weekend overall':'Weekend standings'; resAction=showWeekend; el.swap.hidden=true;}
+  else if(HX.on){el.again.textContent='Back to the city'; resAction=hsExit; el.swap.hidden=true;}
   else{el.again.textContent='Race again'; resAction=startCountdown; el.swap.hidden=false;}
   resAt=clock+(p===1?4.4:1.1);
   if(p===1) celebrate(true);
+  // the city hears about an open race at the flag, and about a weekend once moto 2 is in
+  if(HX.on){
+    HX.won+=prize;
+    if(!inTour) hsDone({kind:'open',p,prize,site:site.name,dnf:0});
+    else if(moto) hsDone(weekendRes(0));
+  }
 }
 
 function tourOrder(){return RACERS.map((r,i)=>i).sort((a,b)=>tour.pts[b]-tour.pts[a]||a-b);}
@@ -1090,11 +1106,13 @@ function showStandings(){
     el.sum.textContent=pos===1?'You are the series champion.':RACERS[order[0]].full+' won the series. You finished '+ordinal(pos)+'.';
     el.again.textContent='Championship ceremony'; el.swap.hidden=true;
     resAction=()=>startCeremony({eyebrow:'Season finale · '+SITES[TOUR[TOUR.length-1][0]].name,title:'Series champions',
-      rows:order.slice(0,3).map(i=>({ri:i,name:RACERS[i].full+(i===tour.r?' (you)':''),val:tour.pts[i]+' pts'})),after:backToSetup});
+      rows:order.slice(0,3).map(i=>({ri:i,name:RACERS[i].full+(i===tour.r?' (you)':''),val:tour.pts[i]+' pts'})),after:HX.on?hsExit:backToSetup});
   }else{
     const st=TOUR[tStop()];
     el.sum.textContent='Next: round '+(tStop()+1)+' of '+TOUR.length+' at '+SITES[st[0]].name+', two motos.';
     el.again.textContent='Next weekend'; resAction=startCountdown; el.swap.hidden=false;
+    // in the city the next weekend is five days off, and a lot can happen in five days
+    if(HX.on){el.sum.textContent='Next: round '+(tStop()+1)+' of '+TOUR.length+' at '+SITES[st[0]].name+', in five days.'; el.again.textContent='Back to the city'; resAction=hsExit; el.swap.hidden=true;}
   }
 }
 
@@ -1123,6 +1141,7 @@ function dragReset(){
   // your ski with its drag parts; the rival rides the same build with the drag parts of its round
   const base=playerMod(), rl=ladder.round;
   pl=dragGrid(wd,sel.r,sel.c,ladder.opp[rl],dragMod(base,build(myCraft()).d),dragRT(rl,Math.random),dragMod(base,DRAG_PARTS.map(()=>rl)));
+  if(HX.on) Object.assign(wd.skis[1],MARCUS);
   skis=wd.skis; ais=[skis[1]]; racePace=1; wd.round=rl;
   if(sel.paint>=0){pl.hull=PAINTS[sel.paint]; pl.trim=lum(pl.hull)>.6?COL.ink:'#fcfdfb';}
   for(const s of skis){s.wx=[];s.wy=[];s.wa=[];s.wnx=[];s.wny=[];s.wm=0;}
@@ -1139,7 +1158,7 @@ function startDrag(){
   dg={tt:0,stage:st,amb,green:amb+TREE,lit:0,done:false,shown:false,tapSeen:taps,trimSeen:0,lostSeen:0};
   wd.t=-(dg.green); mode='count'; calmT=.8; keys.gas=false;
   setLive(true);
-  el.banT.textContent=ROUNDS[ladder.round]+' · you vs '+RACERS[ladder.opp[ladder.round]].name;
+  el.banT.textContent=(HX.on?'Grudge run':ROUNDS[ladder.round])+' · you vs '+ais[0].name;
   el.banH.textContent=(finePtr?'Press the up arrow or space':'Tap anywhere')+' on the green: the ambers come four tenths before it. Then tap each green trim light the instant it comes on.';
   el.banner.hidden=false;
   audioInit();
@@ -1183,13 +1202,13 @@ function dragFinish(){
   else if(pf) win=false; else if(of) win=true;
   else if(pl.fin==null) win=false; else if(o.fin==null) win=true; else win=pl.fin<o.fin;
   const rt=pl.go, et=pl.fin!=null&&rt!=null?pl.fin-Math.max(0,rt):null, mar=pl.fin!=null&&o.fin!=null?Math.abs(o.fin-pl.fin):null;
-  el.place.textContent=win?(round===2?'Winner':'Win'):pf?'Red light':'Loss';
-  el.resEyebrow.textContent=ROUNDS[round]+' · Havasu Drag Strip';
+  el.place.textContent=win?(round===2&&!HX.on?'Winner':'Win'):pf?'Red light':'Loss';
+  el.resEyebrow.textContent=(HX.on?'Grudge run':ROUNDS[round])+' · Havasu Drag Strip';
   statCells([['Reaction',rt==null?'–':rt<0?'Red':rt.toFixed(3)],['1,000 ft',et==null?'–':et.toFixed(2)],['Trap',pl.trap?Math.round(pl.trap*MPH)+' mph':'–'],['Margin',mar==null?'–':mar.toFixed(3)]]);
   const tr=s=>s.trims.length?' · trims '+s.trims.map(x=>x==null?'miss':x.toFixed(2).replace(/^0/,'')).join(' '):'';
   const row=(s,me)=>({name:s.full+(me?' (you)':''),craft:'RT '+(s.go==null?'–':s.go<0?'red light':s.go.toFixed(3))+tr(s),val:s.fin!=null?s.fin.toFixed(3):'–',extra:'',me});
   board(win?[row(pl,true),row(o,false)]:[row(o,false),row(pl,true)]);
-  const pay=CLASSES[gar.cls].pay, prize=Math.round((win?DRAG_PAY[round]:150)*pay/10)*10, gb=build(myCraft());
+  const pay=CLASSES[gar.cls].pay, prize=Math.round((win?DRAG_PAY[round]:150)*pay*HX.purse/10)*10, gb=build(myCraft());
   gar.cash+=prize; gb.w[0]=Math.max(0,gb.w[0]-1.5); gb.w[1]=Math.max(0,gb.w[1]-(1+.6*gb.p[3])); gb.w[2]=Math.max(0,gb.w[2]-1.5); saveGar();
   let tip='';
   if(pf) tip=' You went '+(-rt).toFixed(3)+' before the green.';
@@ -1198,6 +1217,11 @@ function dragFinish(){
   else if(!win&&rt!=null&&rt>.15) tip=' The ambers come exactly four tenths before the green: start your thumb moving on them.';
   else if(!win&&rt!=null) tip=' Close. A few hundredths sooner off the tree wins it.';
   el.sum.textContent=(win&&round===2?'You won the ladder. ':'')+'Prize '+money(prize)+'.'+tip;
+  if(HX.on){
+    el.sum.textContent=(win?'You beat Marcus to the line.':'Marcus takes it.')+tip;
+    el.again.textContent='Back to the city'; resAction=hsExit; el.swap.hidden=true; el.podBtn.hidden=true; resAt=clock+1.3;
+    hsDone({kind:'drag',win,red:pf,dnf:0}); return;
+  }
   if(win&&round<2){ladder.round++; el.again.textContent='Next: '+ROUNDS[ladder.round].toLowerCase()+' vs '+RACERS[ladder.opp[ladder.round]].name; resAction=startDrag;}
   else{el.again.textContent=win?'Run the ladder again':'Start the ladder over'; resAction=()=>{newLadder(); startDrag();};}
   el.swap.hidden=false; el.podBtn.hidden=true;
@@ -3062,7 +3086,7 @@ function g3Skis(){
   for(const s of skis){
     s.g3s=new T3.Mesh(G.shGeo,G.shMat); s.g3s.renderOrder=-3; s.g3s.scale.set(s.sh.L+s.sh.S+8,s.sh.B*2+6,1); G.shG.add(s.g3s);
     const g=new T3.Group(), geo=g3SkiGeo(s), rg=g3RiderGeo(s), bar=g3Bar(s.sh), M=x=>new T3.Mesh(x,G.mat);
-    const pm=new T3.MeshBasicMaterial({map:g3Plate(RACERS[s.ri].num)}); pm.userData.own=true;
+    const pm=new T3.MeshBasicMaterial({map:g3Plate(s.num)}); pm.userData.own=true;
     // hx, hy: where the hips sit; fx, fy, fz: where the feet go; gz: how far out the grips are. A painted ski model moves them to fit its own shape.
     const R=s.rig={torso:M(rg.torso),head:M(rg.head),bar:M(geo.bar),ua:[M(rg.ua),M(rg.ua)],fa:[M(rg.fa),M(rg.fa)],th:[M(rg.th),M(rg.th)],sn:[M(rg.sn),M(rg.sn)],
       fz:geo.fz,hx:RIG.hip[0],hy:RIG.hip[1],fx:-.6,fy:6.3,gz:4.15};
@@ -4273,8 +4297,11 @@ function refreshSetup(){
   const dr=gmode==='drag';
   el.modeS.setAttribute('aria-pressed',String(gmode==='single')); el.modeT.setAttribute('aria-pressed',String(t)); el.modeD.setAttribute('aria-pressed',String(dr)); el.modeI.setAttribute('aria-pressed',String(gmode==='items')); el.modeC.setAttribute('aria-pressed',String(gmode==='crates'));
   el.tabS.textContent=t?'Stops':'Site'; el.tabS.disabled=dr;
-  el.go.textContent=dr?(ladder.round?'Run the '+ROUNDS[ladder.round].toLowerCase()+' vs '+RACERS[ladder.opp[ladder.round]].name:'Start the ladder'):gmode==='items'?'Start item race':gmode==='crates'?'Start crate run':!t?'Start race':live?(tour.round%2?'Start moto 2':'Start round '+(tStop()+1)):'Start tour';
-  el.quit.hidden=!live||dr; el.quit.textContent='Abandon tour'; quitArm=false;
+  el.go.textContent=dr&&HX.on?'Line up against Marcus':dr?(ladder.round?'Run the '+ROUNDS[ladder.round].toLowerCase()+' vs '+RACERS[ladder.opp[ladder.round]].name:'Start the ladder'):gmode==='items'?'Start item race':gmode==='crates'?'Start crate run':!t?'Start race':live?(tour.round%2?'Start moto 2':'Start round '+(tStop()+1)):'Start tour';
+  el.quit.hidden=!live||dr||HX.on; el.quit.textContent='Abandon tour'; quitArm=false;
+  // from the city the plate is the pits for one thing: a weekend, an open race, a drag run, or the garage with nothing to start
+  el.go.hidden=HX.on&&HX.kind==='garage';
+  el.startEyebrow.textContent=!HX.on?'Closed course · 10 riders':HX.kind==='garage'?'Tommy\'s Garage · your ski':t?'Race weekend · 10 riders':dr?'Drag strip · you against Marcus':'Open race · 10 riders';
   syncOpts(); summary(); showTab(tab);
 }
 function setMode(m){
@@ -4322,7 +4349,7 @@ function showTab(t){
     });
     return;
   }
-  const racer=t==='r', items=racer?RACERS:CRAFTS, stats=racer?RSTAT:CSTAT, cur=racer?sel.r:sel.c, locked=inTour&&tourLive();
+  const racer=t==='r', items=racer?RACERS:CRAFTS, stats=racer?RSTAT:CSTAT, cur=racer?sel.r:sel.c, locked=(inTour||HX.on)&&tourLive();
   el.list.style.setProperty('--k',String(stats.length));
   if(locked){
     const p=document.createElement('p'); p.className='fine'; p.textContent='Racer and craft are locked until this tour ends.';
@@ -4342,7 +4369,7 @@ function showTab(t){
     b.appendChild(nm);
     for(const st of stats) b.appendChild(miniBar(it[st[0]],st[2],st[3]));
     b.addEventListener('click',()=>{
-      if(racer){sel.r=i; store('racer',i);}else{sel.c=i; store('craft',i);}
+      if(racer){sel.r=i; store(PKEY('racer'),i);}else{sel.c=i; store(PKEY('craft'),i);}
       press('.opt',i); summary(); if(mode==='idle') reset();
     });
     el.list.appendChild(b);
@@ -4356,7 +4383,7 @@ function showTab(t){
       d.setAttribute('aria-pressed',String(i===sel.paint));
       if(i<0){d.textContent='Own'; d.setAttribute('aria-label','Racer colours');}
       else{d.style.background=PAINTS[i]; d.setAttribute('aria-label','Paint '+(i+1));}
-      d.addEventListener('click',()=>{sel.paint=i; store('paint',i); press('.dab',i+1); if(mode==='idle') reset();});
+      d.addEventListener('click',()=>{sel.paint=i; store(PKEY('paint'),i); press('.dab',i+1); if(mode==='idle') reset();});
       row.appendChild(d);
     }
     el.list.appendChild(row);
@@ -4404,6 +4431,7 @@ function blip(freq,dur,type,vol){
 // ---------- loop and listeners ----------
 let last=0;
 function frame(ts){
+  if(window.CITYON){last=ts; requestAnimationFrame(frame); return;}          // nothing runs or draws while the city is on screen
   const raw=Math.min(.1,(ts-last)/1000||.016); last=ts;
   // A device that cannot hold the frame rate loses the moving shimmer and some sharpness, a step at a time. This is watched
   // from the setup screen on, so the picture has usually settled before the first race, and the answer is remembered.
@@ -4430,6 +4458,7 @@ function frame(ts){
   requestAnimationFrame(frame);
 }
 function key(e,d){
+  if(window.CITYON) return;
   const k=e.key;
   if(k==='ArrowLeft'||k==='a'||k==='A'){keys.left=d; if(d) lastSide=-1;}
   else if(k==='ArrowRight'||k==='d'||k==='D'){keys.right=d; if(d) lastSide=1;}
@@ -4440,6 +4469,7 @@ function key(e,d){
   else if(d&&(k===' '||k==='Enter')){
     if(e.target&&e.target.tagName==='BUTTON') return;
     if(mode==='podium'){e.preventDefault(); endCeremony();}
+    else if(mode==='idle'&&el.go.hidden) return;
     else if(mode==='idle'||mode==='done'){e.preventDefault(); if(mode==='done'&&resAction) resAction(); else startCountdown();}
     return;
   }else return;
@@ -4480,7 +4510,9 @@ el.cerGo.addEventListener('click',endCeremony);
 el.pauseBtn.addEventListener('click',pauseGame);
 el.resume.addEventListener('click',resumeGame);
 el.restart.addEventListener('click',startCountdown);
-el.toSetup.addEventListener('click',backToSetup);
+el.toSetup.addEventListener('click',()=>{if(HX.on) hsRetire(); else backToSetup();});
+// from free play the button goes to the city; from the city's pits it goes back to it
+el.toCity.addEventListener('click',()=>{if(HX.on) hsExit(); else if(window.CITY) window.CITY.enter();});
 el.modeS.addEventListener('click',()=>setMode('single'));
 el.modeT.addEventListener('click',()=>setMode('tour'));
 el.modeD.addEventListener('click',()=>setMode('drag'));
@@ -4492,9 +4524,117 @@ el.quit.addEventListener('click',()=>{
 });
 for(const k of ['r','c','g','s','h']) el['tab'+k.toUpperCase()].addEventListener('click',()=>showTab(k));
 for(const r of RIV) $('rv'+r).addEventListener('click',()=>{
-  riv=r; store('o10.riv',r); syncOpts(); if(mode==='idle') reset();
+  riv=r; if(!HX.on) store('o10.riv',r); syncOpts(); if(mode==='idle') reset();
 });
 window.addEventListener('resize',resize);
+
+// ---------- Side Hustle City ----------
+// The main game is a life sim, Side Hustle City (src/city), laid over this page. It is a script of its own and reaches the racing
+// only through window.HS, below. While the city is on screen window.CITYON is true and nothing here runs or draws.
+// The city has a garage and a tour of its own, saved apart from free play (PKEY), and one wallet: in the city, gar.cash is the
+// city's money. HX holds what the city asked for when it opened the pits: prices, purse, small rider edges, and where to report.
+const HX={on:false,kind:'',disc:1,svc:1,purse:1,top:1,turn:1,shop:true,done:null,exit:null,won:0,wget:()=>0,wset:()=>{}};
+const PKEY=k=>HX.on?'city.'+k:k;
+const pcost=(p,l)=>Math.round(p.cost[l]*HX.disc/10)*10;
+// Marcus, the city's rival, only ever lines up on the drag strip, so nobody on the real roster gives up a place to him.
+const MARCUS={name:'Marcus',full:'Marcus',num:13,hull:'#b3261e',trim:'#fcfdfb'};
+let free=null;      // what free play had loaded, kept while the city has its own garage and tour in
+
+function cityOn(){
+  if(HX.on) return;
+  saveGar(); saveTour();
+  free={gar,tour,r:sel.r,c:sel.c,paint:sel.paint,riv,autoPace,gmode,ladder};
+  HX.on=true;
+  gar={cls:0,crafts:{}}; Object.defineProperty(gar,'cash',{get(){return HX.wget();},set(v){HX.wset(v);}}); loadGar();
+  sel.r=pick(PKEY('racer'),RACERS.length,free.r); sel.c=pick(PKEY('craft'),CRAFTS.length,free.c); sel.paint=pick(PKEY('paint'),PAINTS.length,free.paint);
+  tour=freshTour(); loadTour(); if(tourLive()){sel.r=tour.r; sel.c=tour.c;}
+  // the city's field finds its own level
+  riv='auto'; {const a=parseFloat(load(PKEY('o8.pace'))); autoPace=a>=0&&a<=1?a:.5;}
+  mode='idle'; paused=false; resAt=0; el.start.hidden=true; el.result.hidden=true; el.pause.hidden=true; setLive(false);
+  document.body.classList.add('city'); el.toSetup.textContent='Retire: counts as a DNF';
+  window.CITYON=true;
+}
+function cityOff(){
+  if(!HX.on) return;
+  saveGar(); saveTour();
+  HX.on=false; Object.assign(HX,{kind:'',disc:1,svc:1,purse:1,top:1,turn:1,shop:true,done:null,exit:null,won:0});
+  gar=free.gar; tour=free.tour; sel.r=free.r; sel.c=free.c; sel.paint=free.paint; riv=free.riv; autoPace=free.autoPace; gmode=free.gmode; ladder=free.ladder; free=null;
+  document.body.classList.remove('city'); document.body.classList.toggle('drag',gmode==='drag'); el.toSetup.textContent='Back to setup'; el.go.hidden=false;
+  mode='idle'; paused=false; resAt=0; el.result.hidden=true; el.pause.hidden=true; el.start.hidden=false; setLive(false); hudLabels();
+  window.CITYON=false; stage(); refreshSetup(); resize();
+}
+// the city opens the pits: c.mode is 'tour' (a race weekend), 'open' (one race), 'drag' (a run against Marcus) or 'garage' (no race)
+function hsOpen(c){
+  if(!HX.on) return;
+  Object.assign(HX,{kind:c.mode,disc:c.disc||1,svc:c.svc||1,purse:c.purse==null?1:c.purse,top:c.top||1,turn:c.turn||1,shop:c.mode==='garage',done:c.done||null,exit:c.exit||null,won:0});
+  gmode=c.mode==='tour'?'tour':c.mode==='drag'?'drag':'single';
+  hudLabels(); document.body.classList.toggle('drag',gmode==='drag');
+  if(tourLive()){sel.r=tour.r; sel.c=tour.c;}
+  if(gmode==='drag'){const o=(sel.r+1)%RACERS.length; ladder={round:clamp(c.level|0,0,2),opp:[o,o,o]};}
+  tab=HX.shop?'g':tab==='g'?'c':tab;
+  mode='idle'; paused=false; resAt=0; resAction=startCountdown; el.result.hidden=true; el.pause.hidden=true; el.start.hidden=false;
+  window.CITYON=false; stage(); refreshSetup(); resize();
+}
+// back to the city, from the pits or from a result
+function hsExit(){
+  if(!HX.on) return;
+  cer=null; cele=null; conf=[]; el.cer.hidden=true; document.body.classList.remove('cering');
+  mode='idle'; paused=false; resAt=0; el.result.hidden=true; el.pause.hidden=true; el.start.hidden=true; setLive(false); audioFrame();
+  window.CITYON=true;
+  const f=HX.exit; if(f) f();
+}
+// the city hears about a race once, when it is decided
+function hsDone(res){const f=HX.done; HX.done=null; if(f) f(res);}
+function weekendRes(dnf){
+  const L=tour.last;
+  return {kind:'tour',p:L.ord.indexOf(tour.r)+1,m:[L.p1[tour.r],L.p2[tour.r]],prize:HX.won,site:SITES[TOUR[L.stop][0]].name,
+    round:Math.floor(tour.round/2),total:TOUR.length,tpos:tourOrder().indexOf(tour.r)+1,dnf};
+}
+// A weekend the rider was not at, or the rest of one they left: the field takes the points for every moto still to run.
+function hsSkip(){
+  if(tour.round>=MOTOS) return;
+  if(tour.round===0){tour.r=sel.r; tour.c=sel.c;}
+  do{
+    const o=RACERS.map((r,i)=>i).filter(i=>i!==tour.r).sort((a,b)=>hash(a,tour.round,5)-hash(b,tour.round,5));
+    tourScore(o.concat(tour.r),tour.r);
+  }while(tour.round%2);
+}
+// Retiring from a started race. In a tour it ends the weekend; anywhere it is reported as a DNF.
+function hsRetire(){
+  if(!HX.on||(mode!=='race'&&mode!=='count')) return;
+  if(gmode==='tour'){
+    const o=ais.slice().sort((a,b)=>(b.lap*N+b.idx)-(a.lap*N+a.idx)).map(s=>s.ri);
+    tourScore(o.concat(tour.r),tour.r);
+    if(tour.round%2) hsSkip();
+    hsDone(weekendRes(1));
+  }else hsDone({kind:gmode==='drag'?'drag':'open',p:RACERS.length,win:false,prize:0,site:site.name,dnf:1});
+  hsExit();
+}
+window.HS={
+  wallet(g,s){HX.wget=g; HX.wset=s;},
+  city(on){if(on) cityOn(); else cityOff();},
+  open:hsOpen,
+  // what the city shows about the racing: weekends done, whether moto 2 of one is waiting, the next site, the standings, the ski
+  info(){
+    const ci=myCraft(), b=build(ci), live=tour.round<MOTOS;
+    return {round:Math.floor(tour.round/2),mid:tour.round%2,total:TOUR.length,next:live?SITES[TOUR[tStop()][0]].name:'',
+      pts:tour.pts[tour.r]||0,pos:tourOrder().indexOf(tour.r)+1,cls:CLASSES[gar.cls].name,craft:CRAFTS[ci].name,
+      parts:b.p.reduce((a,c)=>a+c,0)+b.d.reduce((a,c)=>a+c,0),wear:Math.round(Math.min(b.w[0],b.w[1],b.w[2]))};
+  },
+  skip:hsSkip,
+  newTour(){const r=tour.r, c=tour.c; tour=freshTour(); tour.r=r; tour.c=c; saveTour();},
+  // lose a pink slip run and every part comes off the ski
+  strip(){const b=build(myCraft()); b.p=PARTS.map(()=>0); b.d=DRAG_PARTS.map(()=>0); saveGar();},
+  fresh(){const b=build(myCraft()); b.w=WEAR.map(()=>100); saveGar();},
+  // a part Dex can get: the next level of something not yet maxed, at half price
+  offer(){
+    const b=build(myCraft()), c=PARTS.map((p,i)=>i).filter(i=>b.p[i]<3); if(!c.length) return null;
+    const i=c[Math.floor(Math.random()*c.length)]; return {i,name:PARTS[i].name,level:b.p[i]+1,cost:Math.round(PARTS[i].cost[b.p[i]]*.5/10)*10};
+  },
+  grant(i){const b=build(myCraft()); if(b.p[i]<3){b.p[i]++; saveGar();}},
+  // a new life in the city: its tour and garage start over
+  resetAll(){if(!HX.on) return; tour=freshTour(); saveTour(); gar.cls=0; gar.crafts={}; saveGar(); autoPace=.5; store(PKEY('o8.pace'),'0.500');}
+};
 
 const pick=(k,n,dflt)=>{const v=parseInt(load(k),10); return v>=0&&v<n?v:dflt;};
 sel.r=pick('racer',RACERS.length,RACERS.length-1);   // a new player rides as Dustin

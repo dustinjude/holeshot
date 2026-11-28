@@ -743,7 +743,7 @@ function g3Skis(){
   for(const s of skis){
     s.g3s=new T3.Mesh(G.shGeo,G.shMat); s.g3s.renderOrder=-3; s.g3s.scale.set(s.sh.L+s.sh.S+8,s.sh.B*2+6,1); G.shG.add(s.g3s);
     const g=new T3.Group(), geo=g3SkiGeo(s), rg=g3RiderGeo(s), bar=g3Bar(s.sh), M=x=>new T3.Mesh(x,G.mat);
-    const pm=new T3.MeshBasicMaterial({map:g3Plate(RACERS[s.ri].num)}); pm.userData.own=true;
+    const pm=new T3.MeshBasicMaterial({map:g3Plate(s.num)}); pm.userData.own=true;
     // hx, hy: where the hips sit; fx, fy, fz: where the feet go; gz: how far out the grips are. A painted ski model moves them to fit its own shape.
     const R=s.rig={torso:M(rg.torso),head:M(rg.head),bar:M(geo.bar),ua:[M(rg.ua),M(rg.ua)],fa:[M(rg.fa),M(rg.fa)],th:[M(rg.th),M(rg.th)],sn:[M(rg.sn),M(rg.sn)],
       fz:geo.fz,hx:RIG.hip[0],hy:RIG.hip[1],fx:-.6,fy:6.3,gz:4.15};
