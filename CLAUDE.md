@@ -24,7 +24,7 @@ checked and what you couldn't check.
   then `shell.js`, which has one marker line each (`//@arcade`, `//@draw`, `//@r3`, `//@party`) where those files
   are inserted. Everything shares one scope, so a function in one file calls one in another directly, and top-level
   `const`s are initialised in that order.
-  - `core.js`: game logic, no DOM. Racers, crafts, garage parts, the 10 courses in `SITES` plus the drag strip,
+  - `core.js`: game logic, no DOM. Racers, crafts, garage parts, the 11 courses in `SITES` plus the drag strip,
     course building (closed Catmull-Rom path, points every `DS`=16 units, per-point lane width `p.w`, turns at
     curvature peaks, land, marks, rough-water zones), the wave field `waveH`, ski physics (fixed 120 Hz step, grip and
     slide, hops off wave tops: `GRAV`, `HOP`, `KICK`), rival AI, `rivalSpec(pace)`, `gridUp`, `simStep`, drag racing.
@@ -51,11 +51,16 @@ to the built hull they replace.
 
 ## Modes
 
-- Race: one race, 10 riders, 3 laps (4 at Sundown Stadium), on any course in either direction.
-- Tour: 8 race weekends ending at Lake Havasu (`TOUR`). Each weekend is two motos on one course; moto 2 lines up in
+- Race: one race, 10 riders, 3 laps (4 at Sundown Stadium, 1 at Jet Around Cayman), on any course in either direction.
+- Jet Around Cayman (`cayman`): after the real endurance race once round Grand Cayman (Easter Monday, from Seven
+  Mile Public Beach, heading north, so clockwise). One lap of a freehand island (`island` outline filled with land in
+  `buildCourse`), not to scale: about 2:40 a lap. Rough-water zones off the north coast, East End and Pedro; named
+  checkpoints (`cps`) are called out with the time. The real event has a fuel stop and checkpoints with GPS; neither the
+  route map nor the distance is published, so the shape is a guess from race reports.
+- Tour: 9 race weekends ending at Lake Havasu (`TOUR`), with Jet Around Cayman as round 2. Each weekend is two motos on one course; moto 2 lines up in
   moto 1's finishing order. Moto points (`PTS` 25-20-16-13-11-9-7-5-3-1) add up to the weekend overall, a tie going
   to the better moto 2. The weekend overall pays series points on the same scale. Award ceremony after each weekend
-  and a championship ceremony at the end. Saved as `tour12`.
+  and a championship ceremony at the end. Saved as `tour13`.
 - Drag: reaction-time ladder (quarterfinal, semifinal, final) on a Christmas tree, then tapping trim lights during
   the run. Drag parts in the garage. The rival gets the same machine apart from drag parts.
 - Items and Crates: arcade modes in the spirit of Crash Team Racing and Crash Warped, with all-original art and
@@ -113,7 +118,7 @@ Chris Macclugage #46, Dustin Charrier #40. Deven, Tory, Andre and GJ have placeh
 ## Conventions
 
 - Saved data goes through `store`/`load` (try/catch around localStorage). When a saved shape changes, change its key
-  (`tour10` to `tour12`, `o9.q` to `o17.q`) rather than migrating.
+  (`tour12` to `tour13`, `o9.q` to `o17.q`) rather than migrating.
 - Speeds are game units; `MPH` converts for display. Top speeds were brought down 5% earlier because 91 mph looked
   unrealistic: keep them believable.
 - Built skis, riders and liveries are original designs. Real liveries come only from models Dustin supplies.

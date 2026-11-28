@@ -132,7 +132,26 @@ const SITES=[
   // A city river loop: stone quays and parkland, a skyline on every side, and two steel bridges to run under.
   {id:'river',name:'Riverfront',sub:'A city river loop between stone quays and parkland, under two steel bridges and a skyline.',laps:3,chop:.2,swell:null,lane:115,banks:true,
    ctrl:[[650,3300],[640,2600],[520,2000],[800,1450],[640,950],[1000,450],[1700,380],[2200,700],[2250,1250,.85],[2700,1550,.85],[3250,1400],[3550,1850],[3300,2400],[2750,2500],[2450,2950],[2700,3450],[2250,3900],[1500,3850],[1050,3650]],
-   land:[],marks:[{t:'bridge',f:.36,steel:true},{t:'bridge',f:.83,steel:true}]}];
+   land:[],marks:[{t:'bridge',f:.36,steel:true},{t:'bridge',f:.83,steel:true}]},
+  // After the real Jet Around Cayman: one lap of Grand Cayman, clockwise, from Seven Mile Public Beach heading north. Calm in
+  // the lee of the west coast; big swell off the north coast past Stingray City; the roughest water at East End; heavy seas
+  // off Pedro on the way home. The island is flat, so it is low land and palms. Its shape is drawn freehand and the length
+  // is chosen for a phone race of about three minutes, not to scale.
+  {id:'cayman',name:'Jet Around Cayman',sub:'Once around Grand Cayman. Calm off Seven Mile Beach, big swell on the north coast, the roughest water at East End.',
+   laps:1,chop:.3,ocean:true,lane:150,sweep:1100,
+   swell:{a:2.79,len:700,c:90,amp:6},swell2:{a:2.2,len:340,c:58,amp:2.5},
+   ctrl:[[650,3600],[620,2800],[650,1900],[750,1000],[1050,300],[1800,50],[2700,150],[4000,100],[5200,150],[6400,100],[8000,50],[10000,100],[12000,250],
+     [14000,400],[15800,700],[17000,1300],[17600,2200],[17300,3300],[16000,3850],[14000,3950],[12000,4200],[10000,4500],[8200,4900],[6600,5450],[5600,5900],
+     [4200,6050],[2800,6150],[1600,6050],[900,5400],[680,4500]],
+   // the island as an outline, filled with land when the course is built; the North Sound is the bay left open on the north side
+   island:[[1400,5300],[1250,4300],[1200,3200],[1250,2100],[1350,1200],[1550,750],[2050,700],[2400,1100],[2450,2000],[2550,2900],[3100,3350],[4200,3500],[5200,3350],
+     [5800,2800],[5950,1800],[6150,900],[7500,650],[9500,700],[11500,850],[13500,1000],[15200,1300],[16400,1800],[16900,2400],[16600,3000],[15200,3200],[13000,3350],
+     [11000,3600],[9000,3900],[7200,4300],[5800,4850],[4200,5250],[2800,5450],[1900,5450]],
+   beach:{x:1250,y0:2700,y1:4500},
+   land:[],zones:[[4300,150,1500,.55],[17300,2300,1700,.95],[6100,5650,1500,.7]],
+   // checkpoints called out as you pass them, with the time so far
+   cps:[[900,700,'West Bay'],[3800,100,'Stingray City'],[8000,50,'North Side'],[17600,2200,'East End'],[11000,4350,'Bodden Town'],[5600,5900,'Pedro'],[1600,6050,'George Town']],
+   marks:[{t:'startboat',f:.012},{t:'light',x:16700,y:2400},{t:'tower',x:1320,y:3300}],boats:[[.3,.38,-1],[.86,.92,-1]]}];
 
 function buildCourse(site,rev){
   const CTRL=rev?[site.ctrl[0]].concat(site.ctrl.slice(1).reverse()):site.ctrl, n=CTRL.length, raw=[], lane=site.lane;
@@ -201,6 +220,22 @@ function buildCourse(site,rev){
       fit(p.x-p.ty*sd*off,p.y+p.tx*sd*off,r,1,false);
     }
   }
+  if(site.island){
+    // a big island: round blobs on a grid inside its outline, beach at the edge and higher, greener ground inland
+    const poly=site.island, inside=(x,y)=>{let c=false; for(let i=0,j=poly.length-1;i<poly.length;j=i++){const a=poly[i], b=poly[j]; if((a[1]>y)!==(b[1]>y)&&x<(b[0]-a[0])*(y-a[1])/(b[1]-a[1])+a[0]) c=!c;} return c;};
+    const edge=(x,y)=>{let d=1e18; for(let i=0,j=poly.length-1;i<poly.length;j=i++){const a=poly[j], b=poly[i], ex=b[0]-a[0], ey=b[1]-a[1], t=clamp(((x-a[0])*ex+(y-a[1])*ey)/(ex*ex+ey*ey),0,1); d=Math.min(d,Math.hypot(a[0]+ex*t-x,a[1]+ey*t-y));} return d;};
+    let x0=1e9,y0=1e9,x1=-1e9,y1=-1e9; for(const q of poly){x0=Math.min(x0,q[0]);x1=Math.max(x1,q[0]);y0=Math.min(y0,q[1]);y1=Math.max(y1,q[1]);}
+    let k=0;
+    for(let y=y0;y<=y1;y+=330) for(let x=x0;x<=x1;x+=330){
+      k++; const jx=x+(hash(k,1,81)-.5)*120, jy=y+(hash(k,2,81)-.5)*120; if(!inside(jx,jy)) continue;
+      const e=edge(jx,jy); fit(jx,jy,Math.min(300,e+170),e>420?1:0,false);
+    }
+    // the coastline itself, so the island ends in a clean beach rather than a row of bumps
+    for(let i=0,j=poly.length-1;i<poly.length;j=i++){
+      const a=poly[j], b=poly[i], l=Math.hypot(b[0]-a[0],b[1]-a[1]);
+      for(let t=0;t<l;t+=150) fit(a[0]+(b[0]-a[0])*t/l,a[1]+(b[1]-a[1])*t/l,170,0,false);
+    }
+  }
   if(site.rocks||site.isles){
     // islands: one inside each corner, then a scatter
     let x0=1e9,y0=1e9,x1=-1e9,y1=-1e9;
@@ -239,7 +274,10 @@ function buildCourse(site,rev){
     if(m.t==='bridge'||m.t==='arch') for(const sd of [-1,1]) land.push({x:p.x-p.ty*sd*(p.w+34),y:p.y+p.tx*sd*(p.w+34),r:20,top:0,obj:true});
     return o;
   });
-  return {path,N,L,turns,land,marks,zones:site.zones||[]};
+  // checkpoints: the point on the course nearest each named place
+  const cps=(site.cps||[]).map(c=>{let bi=0,bd=1e18; for(let j=0;j<N;j++){const d=(path[j].x-c[0])**2+(path[j].y-c[1])**2; if(d<bd){bd=d; bi=j;}} return {idx:bi,name:c[2]};});
+  if(rev) cps.reverse();
+  return {path,N,L,turns,land,marks,cps,zones:site.zones||[]};
 }
 
 // The water surface is a handful of travelling waves. Each is [kx, ky, speed in radians a second, height, phase, share felt by a hull]:
@@ -261,7 +299,7 @@ function waveH(x,y,t,waves,felt,zones){
 }
 function makeWorld(site,rev){
   const C=buildCourse(site,rev), sw=site.swell;
-  return {site,rev:!!rev,path:C.path,N:C.N,L:C.L,turns:C.turns,land:C.land,marks:C.marks,skis:[],pl:null,t:0,go:false,laps:site.laps,
+  return {site,rev:!!rev,path:C.path,N:C.N,L:C.L,turns:C.turns,land:C.land,marks:C.marks,cps:C.cps,skis:[],pl:null,t:0,go:false,laps:site.laps,
     env:{chop:site.chop,swell:sw,ux:sw?Math.cos(sw.a):1,uy:sw?Math.sin(sw.a):0,t:0,waves:makeWaves(site),zones:C.zones.length?C.zones:null}};
 }
 
@@ -559,7 +597,7 @@ function simStep(W,dt){
     if(s.ai){
       aiDrive(s,W,dt);
       // the pack closes up on the player: rivals behind push, and at the gentler levels rivals ahead ease a touch
-      const gap=(pa-(s.lap*N+s.idx))/(N*.1);
+      const gap=(pa-(s.lap*N+s.idx))/Math.min(N*.1,80);
       s.band=gap>0?Math.min(1,gap)*s.push:Math.max(-1,gap)*s.ease;
       if(s.fin!=null) s.thr=Math.min(s.thr,.35);
     }

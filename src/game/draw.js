@@ -8,6 +8,7 @@ const ART={
   arena:{deep:'#123a52',shal:'#3a8a96',wet:'#5a5f66',sand:'#7a7f86',top:'#6b8f4a',tree:'#3f6b3a',kind:'canopy',wind:.3,glint:90,trough:60},
   glacier:{deep:'#0b3a4c',shal:'#4f9aa6',wet:'#545b5a',sand:'#8b8f8c',top:'#3f5f3c',tree:'#24452e',kind:'canopy',wind:.6,glint:110,trough:70},
   lagoon:{deep:'#0a6f8a',shal:'#5fe0d8',wet:'#d9c99a',sand:'#f4ecd2',top:'#5aa35a',tree:'#2f8a45',kind:'palm',wind:.4,glint:125,trough:80},
+  cayman:{deep:'#0a5d86',shal:'#46d4d2',wet:'#dccb9c',sand:'#f6efd8',top:'#5d9e4f',tree:'#2f8a45',kind:'palm',wind:.6,glint:125,trough:90},
   river:{deep:'#1c4a56',shal:'#4f8f93',wet:'#8c8a84',sand:'#b8b4aa',top:'#5c8f48',tree:'#3d7440',kind:'canopy',wind:.3,glint:90,trough:64},
   redrock:{deep:'#11707b',shal:'#66cfbf',wet:'#a35b3c',sand:'#cf7c54',top:'#b6633d',tree:'#72834a',kind:'scrub',wind:.7,glint:112,trough:72}};
 const TENTS=['#f4f6f3','#d8382c','#2b7fd9','#f2b824','#1f9d8a','#f07a1c'];
@@ -626,7 +627,7 @@ function render(){
 function hudOverlay(idle,racing){
   if(!idle){
     // course map, north up
-    const mh=92, sc=mh/(by1-by0), mw=(bx1-bx0)*sc, mx=W-16-mw-8, my=hudBottom+8;
+    const sc=Math.min(92/(by1-by0),120/(bx1-bx0)), mh=(by1-by0)*sc, mw=(bx1-bx0)*sc, mx=W-16-mw-8, my=hudBottom+8;
     ctx.fillStyle='rgba(6,32,42,.5)'; ctx.fillRect(mx-8,my-8,mw+16,mh+16);
     ctx.beginPath();
     for(let j=0;j<=N;j+=4){const p=PATH[j%N], x=mx+(p.x-bx0)*sc, y=my+(p.y-by0)*sc; if(j) ctx.lineTo(x,y); else ctx.moveTo(x,y);}

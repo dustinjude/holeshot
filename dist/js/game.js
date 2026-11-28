@@ -133,7 +133,26 @@ const SITES=[
   // A city river loop: stone quays and parkland, a skyline on every side, and two steel bridges to run under.
   {id:'river',name:'Riverfront',sub:'A city river loop between stone quays and parkland, under two steel bridges and a skyline.',laps:3,chop:.2,swell:null,lane:115,banks:true,
    ctrl:[[650,3300],[640,2600],[520,2000],[800,1450],[640,950],[1000,450],[1700,380],[2200,700],[2250,1250,.85],[2700,1550,.85],[3250,1400],[3550,1850],[3300,2400],[2750,2500],[2450,2950],[2700,3450],[2250,3900],[1500,3850],[1050,3650]],
-   land:[],marks:[{t:'bridge',f:.36,steel:true},{t:'bridge',f:.83,steel:true}]}];
+   land:[],marks:[{t:'bridge',f:.36,steel:true},{t:'bridge',f:.83,steel:true}]},
+  // After the real Jet Around Cayman: one lap of Grand Cayman, clockwise, from Seven Mile Public Beach heading north. Calm in
+  // the lee of the west coast; big swell off the north coast past Stingray City; the roughest water at East End; heavy seas
+  // off Pedro on the way home. The island is flat, so it is low land and palms. Its shape is drawn freehand and the length
+  // is chosen for a phone race of about three minutes, not to scale.
+  {id:'cayman',name:'Jet Around Cayman',sub:'Once around Grand Cayman. Calm off Seven Mile Beach, big swell on the north coast, the roughest water at East End.',
+   laps:1,chop:.3,ocean:true,lane:150,sweep:1100,
+   swell:{a:2.79,len:700,c:90,amp:6},swell2:{a:2.2,len:340,c:58,amp:2.5},
+   ctrl:[[650,3600],[620,2800],[650,1900],[750,1000],[1050,300],[1800,50],[2700,150],[4000,100],[5200,150],[6400,100],[8000,50],[10000,100],[12000,250],
+     [14000,400],[15800,700],[17000,1300],[17600,2200],[17300,3300],[16000,3850],[14000,3950],[12000,4200],[10000,4500],[8200,4900],[6600,5450],[5600,5900],
+     [4200,6050],[2800,6150],[1600,6050],[900,5400],[680,4500]],
+   // the island as an outline, filled with land when the course is built; the North Sound is the bay left open on the north side
+   island:[[1400,5300],[1250,4300],[1200,3200],[1250,2100],[1350,1200],[1550,750],[2050,700],[2400,1100],[2450,2000],[2550,2900],[3100,3350],[4200,3500],[5200,3350],
+     [5800,2800],[5950,1800],[6150,900],[7500,650],[9500,700],[11500,850],[13500,1000],[15200,1300],[16400,1800],[16900,2400],[16600,3000],[15200,3200],[13000,3350],
+     [11000,3600],[9000,3900],[7200,4300],[5800,4850],[4200,5250],[2800,5450],[1900,5450]],
+   beach:{x:1250,y0:2700,y1:4500},
+   land:[],zones:[[4300,150,1500,.55],[17300,2300,1700,.95],[6100,5650,1500,.7]],
+   // checkpoints called out as you pass them, with the time so far
+   cps:[[900,700,'West Bay'],[3800,100,'Stingray City'],[8000,50,'North Side'],[17600,2200,'East End'],[11000,4350,'Bodden Town'],[5600,5900,'Pedro'],[1600,6050,'George Town']],
+   marks:[{t:'startboat',f:.012},{t:'light',x:16700,y:2400},{t:'tower',x:1320,y:3300}],boats:[[.3,.38,-1],[.86,.92,-1]]}];
 
 function buildCourse(site,rev){
   const CTRL=rev?[site.ctrl[0]].concat(site.ctrl.slice(1).reverse()):site.ctrl, n=CTRL.length, raw=[], lane=site.lane;
@@ -202,6 +221,22 @@ function buildCourse(site,rev){
       fit(p.x-p.ty*sd*off,p.y+p.tx*sd*off,r,1,false);
     }
   }
+  if(site.island){
+    // a big island: round blobs on a grid inside its outline, beach at the edge and higher, greener ground inland
+    const poly=site.island, inside=(x,y)=>{let c=false; for(let i=0,j=poly.length-1;i<poly.length;j=i++){const a=poly[i], b=poly[j]; if((a[1]>y)!==(b[1]>y)&&x<(b[0]-a[0])*(y-a[1])/(b[1]-a[1])+a[0]) c=!c;} return c;};
+    const edge=(x,y)=>{let d=1e18; for(let i=0,j=poly.length-1;i<poly.length;j=i++){const a=poly[j], b=poly[i], ex=b[0]-a[0], ey=b[1]-a[1], t=clamp(((x-a[0])*ex+(y-a[1])*ey)/(ex*ex+ey*ey),0,1); d=Math.min(d,Math.hypot(a[0]+ex*t-x,a[1]+ey*t-y));} return d;};
+    let x0=1e9,y0=1e9,x1=-1e9,y1=-1e9; for(const q of poly){x0=Math.min(x0,q[0]);x1=Math.max(x1,q[0]);y0=Math.min(y0,q[1]);y1=Math.max(y1,q[1]);}
+    let k=0;
+    for(let y=y0;y<=y1;y+=330) for(let x=x0;x<=x1;x+=330){
+      k++; const jx=x+(hash(k,1,81)-.5)*120, jy=y+(hash(k,2,81)-.5)*120; if(!inside(jx,jy)) continue;
+      const e=edge(jx,jy); fit(jx,jy,Math.min(300,e+170),e>420?1:0,false);
+    }
+    // the coastline itself, so the island ends in a clean beach rather than a row of bumps
+    for(let i=0,j=poly.length-1;i<poly.length;j=i++){
+      const a=poly[j], b=poly[i], l=Math.hypot(b[0]-a[0],b[1]-a[1]);
+      for(let t=0;t<l;t+=150) fit(a[0]+(b[0]-a[0])*t/l,a[1]+(b[1]-a[1])*t/l,170,0,false);
+    }
+  }
   if(site.rocks||site.isles){
     // islands: one inside each corner, then a scatter
     let x0=1e9,y0=1e9,x1=-1e9,y1=-1e9;
@@ -240,7 +275,10 @@ function buildCourse(site,rev){
     if(m.t==='bridge'||m.t==='arch') for(const sd of [-1,1]) land.push({x:p.x-p.ty*sd*(p.w+34),y:p.y+p.tx*sd*(p.w+34),r:20,top:0,obj:true});
     return o;
   });
-  return {path,N,L,turns,land,marks,zones:site.zones||[]};
+  // checkpoints: the point on the course nearest each named place
+  const cps=(site.cps||[]).map(c=>{let bi=0,bd=1e18; for(let j=0;j<N;j++){const d=(path[j].x-c[0])**2+(path[j].y-c[1])**2; if(d<bd){bd=d; bi=j;}} return {idx:bi,name:c[2]};});
+  if(rev) cps.reverse();
+  return {path,N,L,turns,land,marks,cps,zones:site.zones||[]};
 }
 
 // The water surface is a handful of travelling waves. Each is [kx, ky, speed in radians a second, height, phase, share felt by a hull]:
@@ -262,7 +300,7 @@ function waveH(x,y,t,waves,felt,zones){
 }
 function makeWorld(site,rev){
   const C=buildCourse(site,rev), sw=site.swell;
-  return {site,rev:!!rev,path:C.path,N:C.N,L:C.L,turns:C.turns,land:C.land,marks:C.marks,skis:[],pl:null,t:0,go:false,laps:site.laps,
+  return {site,rev:!!rev,path:C.path,N:C.N,L:C.L,turns:C.turns,land:C.land,marks:C.marks,cps:C.cps,skis:[],pl:null,t:0,go:false,laps:site.laps,
     env:{chop:site.chop,swell:sw,ux:sw?Math.cos(sw.a):1,uy:sw?Math.sin(sw.a):0,t:0,waves:makeWaves(site),zones:C.zones.length?C.zones:null}};
 }
 
@@ -560,7 +598,7 @@ function simStep(W,dt){
     if(s.ai){
       aiDrive(s,W,dt);
       // the pack closes up on the player: rivals behind push, and at the gentler levels rivals ahead ease a touch
-      const gap=(pa-(s.lap*N+s.idx))/(N*.1);
+      const gap=(pa-(s.lap*N+s.idx))/Math.min(N*.1,80);
       s.band=gap>0?Math.min(1,gap)*s.push:Math.max(-1,gap)*s.ease;
       if(s.fin!=null) s.thr=Math.min(s.thr,.35);
     }
@@ -671,7 +709,7 @@ const RSTAT=[['launch','Launch',.9,1.16],['corner','Corners',.9,1.16],['chopR','
 const CSTAT=[['top','Speed',.94,1.06],['acc','Accel',.8,1.2],['turn','Turn',.8,1.2],['stab','Stable',.75,1.35]];
 // The tour is a season of race weekends, ending at Havasu. Each weekend is two motos on the same course: moto points add up to the
 // weekend overall, and the weekend overall pays series points on the same scale.
-const TOUR=[[6,false],[2,false],[9,false],[3,false],[7,false],[4,false],[8,false],[0,false]], PTS=[25,20,16,13,11,9,7,5,3,1], MOTOS=TOUR.length*2;
+const TOUR=[[6,false],[10,false],[2,false],[9,false],[3,false],[7,false],[4,false],[8,false],[0,false]], PTS=[25,20,16,13,11,9,7,5,3,1], MOTOS=TOUR.length*2;
 const PAINTS=['#fcfdfb','#16222a','#ff8a3c','#ff4fa3','#a78bfa','#38c6f4','#2de0b0','#9be23c','#c98a3e'];
 const OPTS=[['ctrl','Steering',[['hold','Hold sides'],['slide','Slide']]],
   ['feel','Response',[['low','Calm'],['mid','Normal'],['high','Quick']]],
@@ -694,7 +732,7 @@ let tour={round:0,pts:RACERS.map(()=>0),wk:RACERS.map(()=>0),m1:null,m2:null,las
 let W=0,H=0,DPR=1,hudBottom=84;
 let skis=[],ais=[],pl=null,parts=[];
 let mode='idle',paused=false,clock=0,countT=0,card=0,finT=0,resAt=0,flashUntil=0;
-let lapSeen=0,lapStart=0,bestLap=0,rescSeen=0,landSeen=0;
+let lapSeen=0,lapStart=0,bestLap=0,rescSeen=0,landSeen=0,cpSeen=new Set();
 let stat={vmax:0,clean:0,turns:0,off:0,rough:0};
 let camX=0,camY=0,camA=0,zoom=.6,shake=0,gapT=0,tagA=null,tagB=null,idleS=0,revShown=-1,flowShown=-1,SK=1;
 let QUAL=2,slowT=0,ftAvg=.016,calmT=1,acc=0,padL=false,padR=false,bothT=0,lastSide=0;
@@ -705,6 +743,8 @@ const snd={ac:null};
 
 function store(k,v){try{localStorage.setItem(KEY+k,String(v));}catch(e){}}
 function load(k){try{return localStorage.getItem(KEY+k);}catch(e){return null;}}
+// "1 lap", "3 laps"
+function lapsTxt(n){return n+(n===1?' lap':' laps');}
 function fmt(t){const m=Math.floor(t/60), s=t-m*60; return m+':'+(s<10?'0':'')+s.toFixed(1);}
 function set(e,s){if(e._t!==s){e._t=s;e.textContent=s;}}
 function ordinal(p){return p+(p===1?'st':p===2?'nd':p===3?'rd':'th');}
@@ -744,9 +784,17 @@ function buildProps(){
       if(hash(q,8,21)<.6&&inLand(x2,y2,34)) PROPS.push({t:2,x:x2,y:y2,a:0,s:24+hash(q,9,21)*14});
     }
   }
-  if(site.banks||site.rocks||site.isles) LAND.forEach((b,i)=>{
+  if(site.beach){
+    const B=site.beach; let q=0;
+    for(let y=B.y0;y<B.y1;y+=52){
+      q++;
+      const x=B.x+80+(hash(q,3,23)-.5)*60, ci=Math.floor(hash(q,5,23)*6);
+      if(inLand(x,y,30)) PROPS.push(hash(q,4,23)<.25?{t:0,x,y,ci,a:Math.PI/2+(hash(q,6,23)-.5)*.3,s:17}:{t:1,x,y,ci,a:0,s:13});
+    }
+  }
+  if(site.banks||site.rocks||site.isles||site.island) LAND.forEach((b,i)=>{
     if(b.r<72||!b.top) return;
-    const n=site.banks?3:site.isles?4:2;
+    const n=site.banks?3:site.isles?4:site.island?1:2;
     for(let k=0;k<n;k++){
       const a=hash(i,k,31)*TAU, d=hash(i,k,32)*(b.r-58);
       PROPS.push({t:2,x:b.x+Math.cos(a)*d,y:b.y+Math.sin(a)*d,a:0,s:(site.banks?30:site.isles?24:20)+hash(i,k,33)*14});
@@ -847,7 +895,7 @@ function reset(){
   if(sel.paint>=0){pl.hull=PAINTS[sel.paint]; pl.trim=lum(pl.hull)>.6?COL.ink:'#fcfdfb';}
   for(const s of skis){s.wx=[];s.wy=[];s.wa=[];s.wnx=[];s.wny=[];s.wm=0;}
   LAPS=wd.laps; set(el.lapN,'/'+LAPS); set(el.posN,'/'+skis.length);
-  parts=[]; lapSeen=0; lapStart=0; bestLap=0; rescSeen=0; finT=0;
+  parts=[]; lapSeen=0; lapStart=0; bestLap=0; rescSeen=0; finT=0; cpSeen=new Set();
   stat={vmax:0,clean:0,turns:0,off:0,rough:0};
   stick=null; ptrs.clear(); tagA=tagB=null; gapT=0;
   camX=pl.x; camY=pl.y; camA=PATH[(pl.idx+4)%N].h;
@@ -872,10 +920,10 @@ function autoAdjust(p,margin){
 function tourLive(){return tour.round>0&&tour.round<MOTOS;}
 function tStop(){return Math.min(TOUR.length-1,Math.floor(tour.round/2));}
 function freshTour(){return {round:0,pts:RACERS.map(()=>0),wk:RACERS.map(()=>0),m1:null,m2:null,last:null,hist:[],r:sel.r,c:sel.c};}
-function saveTour(){store('tour12',JSON.stringify(tour));}
+function saveTour(){store('tour13',JSON.stringify(tour));}
 function loadTour(){
   try{
-    const t=JSON.parse(load('tour12'));
+    const t=JSON.parse(load('tour13'));
     if(t&&Array.isArray(t.pts)&&t.pts.length===RACERS.length&&Array.isArray(t.wk)&&t.wk.length===RACERS.length&&Array.isArray(t.hist)&&t.round>=0&&t.round<=MOTOS&&(t.round%2===0||Array.isArray(t.m1))&&
        t.r>=0&&t.r<RACERS.length&&t.c>=0&&t.c<CRAFTS.length) tour=t;
   }catch(e){}
@@ -903,7 +951,7 @@ function startCountdown(){
   mode='count'; countT=0; card=0; tileRush=3; calmT=.8;
   setLive(true);
   const what=gmode==='tour'?'Round '+(tStop()+1)+' · Moto '+(tour.round%2+1)+' · ':gmode==='items'?'Item race · ':gmode==='crates'?'Crate run · ':'';
-  el.banT.textContent=what+site.name+(rev?' reverse':'')+' · '+LAPS+' laps';
+  el.banT.textContent=what+site.name+(rev?' reverse':'')+' · '+lapsTxt(LAPS);
   el.banH.textContent=gmode==='items'?'Drive through item boxes, then tap the item button (or up arrow) to use it. Coins add top speed.':gmode==='crates'?'Smash the crates, hit the ramps, dodge the mines. Three lives.':hintText();
   if(gmode==='crates') el.banT.textContent=what+site.name;
   el.banner.hidden=false;
@@ -1236,7 +1284,9 @@ function arcadeSetup(){
     // a solo run: the rivals stay at home, and one lap is the whole level
     for(const s of skis) if(!s.me&&s.g3){s.g3.visible=false; if(s.g3s) s.g3s.visible=false;}
     wd.skis=[pl]; skis=[pl]; ais=[]; wd.laps=1; LAPS=1;
-    for(let c=1;c<5;c++) arc.cps.push(Math.round(FRONT+(N-FRONT)*c/5));
+    // checkpoints every fifth of a lap, or closer on a long lap, so a lost life never sends you far back
+    const nc=Math.max(4,Math.floor(N/200));
+    for(let c=1;c<=nc;c++) arc.cps.push(Math.round(FRONT+(N-FRONT)*c/(nc+1)));
     for(const j of arc.cps) for(const sd of [-1,1]) addObj('cp',j,sd*(PATH[j].w+6));
     const v=pl.top*.92;
     for(let j=FRONT+24;j<N-14;){
@@ -1271,9 +1321,11 @@ function arcadeSetup(){
     }
     arc.total=objs.filter(o=>o.t==='crate').length;
   }else{
-    for(const f of [.2,.5,.8]){const j=Math.round(N*f), w=PATH[j].w; for(let i=0;i<5;i++) addObj('box',j,(i-2)*w*.36);}
-    for(let c=0;c<14;c++){
-      const j=Math.round(FRONT+20+(N-40)*(c+.5)/14), o=PATH[(j+4)%N].c*PATH[j].w*.4*(hash(c,2,93)<.6?1:-1);
+    // three rows of item boxes and 14 coin groups a lap, or more on a long lap so they come as often as on the others
+    const nb=Math.max(3,Math.floor(3*N/750)), ng=Math.max(14,Math.floor(14*N/750));
+    for(let b=0;b<nb;b++){const j=Math.round(N*(nb===3?[.2,.5,.8][b]:(b+.5)/nb)), w=PATH[j].w; for(let i=0;i<5;i++) addObj('box',j,(i-2)*w*.36);}
+    for(let c=0;c<ng;c++){
+      const j=Math.round(FRONT+20+(N-40)*(c+.5)/ng), o=PATH[(j+4)%N].c*PATH[j].w*.4*(hash(c,2,93)<.6?1:-1);
       for(let i=0;i<3;i++) addObj('coin',j+i*2,o,{h:3});
     }
   }
@@ -1522,12 +1574,18 @@ function update(dt){
       }else if(f<0) blip(200,.2,'sawtooth',.1);
       if(pl.out>0){if(pl.out<=dt*1.5) stat.off++; flash('Off course','bad',300);}
       if(pl.resc!==rescSeen){rescSeen=pl.resc; flash('Back on course','',1100);}
-      if(pl.lap!==lapSeen){
-        if(pl.lap>lapSeen){
-          const lt=wd.t-lapStart; lapStart=wd.t;
-          if(!(bestLap>0)||lt<bestLap) bestLap=lt;
-          if(pl.lap<LAPS) flash((pl.lap===LAPS-1?'White flag · last lap':'Lap '+(pl.lap+1)+' · '+fmt(lt)),'',1600);
-        }
+      // a named checkpoint passed: its name and the time so far
+      if(wd.cps) for(let i=0;i<wd.cps.length;i++){
+        const c=wd.cps[i], k=pl.lap*64+i;
+        if(!cpSeen.has(k)&&pl.lap>=0&&(pl.idx-c.idx+N)%N<30){cpSeen.add(k); flash(c.name+' · '+fmt(wd.t),'',1600);}
+      }
+      // a one-lap race is on its last lap from the start: the white flag comes out once the field is under way
+      if(LAPS===1&&!isArc()&&!cpSeen.has(-1)&&pl.lap===0&&pl.idx>FRONT+40){cpSeen.add(-1); flash('White flag · one lap','',1600);}
+      // laps count up only: dropping back behind the line and crossing it again is not a lap
+      if(pl.lap>lapSeen){
+        const lt=wd.t-lapStart; lapStart=wd.t;
+        if(!(bestLap>0)||lt<bestLap) bestLap=lt;
+        if(pl.lap<LAPS) flash((pl.lap===LAPS-1?'White flag · last lap':'Lap '+(pl.lap+1)+' · '+fmt(lt)),'',1600);
         lapSeen=pl.lap;
       }
       if(pl.bump>.27){shake=Math.max(shake,2.2); blip(90,.12,'sine',.2);}
@@ -1607,6 +1665,7 @@ const ART={
   arena:{deep:'#123a52',shal:'#3a8a96',wet:'#5a5f66',sand:'#7a7f86',top:'#6b8f4a',tree:'#3f6b3a',kind:'canopy',wind:.3,glint:90,trough:60},
   glacier:{deep:'#0b3a4c',shal:'#4f9aa6',wet:'#545b5a',sand:'#8b8f8c',top:'#3f5f3c',tree:'#24452e',kind:'canopy',wind:.6,glint:110,trough:70},
   lagoon:{deep:'#0a6f8a',shal:'#5fe0d8',wet:'#d9c99a',sand:'#f4ecd2',top:'#5aa35a',tree:'#2f8a45',kind:'palm',wind:.4,glint:125,trough:80},
+  cayman:{deep:'#0a5d86',shal:'#46d4d2',wet:'#dccb9c',sand:'#f6efd8',top:'#5d9e4f',tree:'#2f8a45',kind:'palm',wind:.6,glint:125,trough:90},
   river:{deep:'#1c4a56',shal:'#4f8f93',wet:'#8c8a84',sand:'#b8b4aa',top:'#5c8f48',tree:'#3d7440',kind:'canopy',wind:.3,glint:90,trough:64},
   redrock:{deep:'#11707b',shal:'#66cfbf',wet:'#a35b3c',sand:'#cf7c54',top:'#b6633d',tree:'#72834a',kind:'scrub',wind:.7,glint:112,trough:72}};
 const TENTS=['#f4f6f3','#d8382c','#2b7fd9','#f2b824','#1f9d8a','#f07a1c'];
@@ -2225,7 +2284,7 @@ function render(){
 function hudOverlay(idle,racing){
   if(!idle){
     // course map, north up
-    const mh=92, sc=mh/(by1-by0), mw=(bx1-bx0)*sc, mx=W-16-mw-8, my=hudBottom+8;
+    const sc=Math.min(92/(by1-by0),120/(bx1-bx0)), mh=(by1-by0)*sc, mw=(bx1-bx0)*sc, mx=W-16-mw-8, my=hudBottom+8;
     ctx.fillStyle='rgba(6,32,42,.5)'; ctx.fillRect(mx-8,my-8,mw+16,mh+16);
     ctx.beginPath();
     for(let j=0;j<=N;j+=4){const p=PATH[j%N], x=mx+(p.x-bx0)*sc, y=my+(p.y-by0)*sc; if(j) ctx.lineTo(x,y); else ctx.moveTo(x,y);}
@@ -2272,6 +2331,8 @@ const PAL3={
 PAL3.arena={zen:'#2b2f63',hor:'#f3a66b',deep:'#123a52',shal:'#2f7f8f',sand:'#7a7f86',wet:'#5a5f66',top:'#6b8f4a',tree:'#3f6b3a',rock:'#6a6f76',far:'#4a3f5a',fog:.00032,cloud:.5,sun:[.7,.1,.7],sunCol:'#ffab66',sunI:.5,hemiI:.62};
 PAL3.glacier={zen:'#2f6fb8',hor:'#dfe8ee',deep:'#0b3a4c',shal:'#3e8e9c',sand:'#8b8f8c',wet:'#545b5a',top:'#3f5f3c',tree:'#24452e',rock:'#7f8584',far:'#6f8296',fog:.00022,cloud:.4,sun:[-.4,.55,-.73],snow:[1100,760]};
 PAL3.lagoon={zen:'#1d7fd6',hor:'#d8f2f4',deep:'#0a6f8a',shal:'#46d6cf',sand:'#f4ecd2',wet:'#d9c99a',top:'#5aa35a',tree:'#2f8a45',rock:'#9a9a8a',far:'#4f8f6a',fog:.0002,cloud:.55,sun:[.35,.62,-.7]};
+// Grand Cayman: clear Caribbean water, white sand, a flat green island and a high sun
+PAL3.cayman={zen:'#1874d2',hor:'#d6f0f4',deep:'#0a5d86',shal:'#38c9cf',sand:'#f6efd8',wet:'#dccb9c',top:'#5d9e4f',tree:'#2f8a45',rock:'#a29d8a',far:'#5f9a72',fog:.00018,cloud:.5,sun:[.25,.7,-.66]};
 PAL3.river={zen:'#4c8cc8',hor:'#dde4e6',deep:'#1c4a56',shal:'#3f7f83',sand:'#b8b4aa',wet:'#8c8a84',top:'#5c8f48',tree:'#3d7440',rock:'#8a8780',far:'#8f9aa3',fog:.0003,cloud:.6,sun:[.5,.5,.7]};
 const CARS=['#e8e8e4','#30363a','#a8322c','#2b5d9c','#c8c2b0','#5a6066'];
 const WAVE_GLSL=`
@@ -2610,6 +2671,7 @@ function g3Backdrop(S,P,cx,cz,R){
       if(id==='bayou') return (layer?130:210)+70*n+j*40;
       if(id==='glacier') return (layer?420:650)+(layer?900:1500)*n*n+j*(layer?120:220);
       if(id==='lagoon') return Math.max(0,n-.56)*(layer?1100:2000);
+      if(id==='cayman') return 0;                                  // open sea all round the island
       if(cityId) return layer?(hash(i,7,47)>.35?110+hash(i,8,47)*(id==='river'?620:380):50):(id==='arena'?150:210)+120*n;
       // sea sites: land only along one side. A beach town has low hills behind a line of towers; the open ocean has a headland.
       const w=clamp((-Math.cos(a)-.25)*3,0,1); if(w<=0) return 0;
@@ -2804,7 +2866,7 @@ function g3Site(){
   LAND.forEach((b,i)=>{
     if(b.obj){b.h3=0; b.butte=false; return;}
     b.butte=!!(site.rocks&&b.top);
-    if(site.isles){b.h3=site.id==='glacier'?(b.top?16+b.r*.2:8+b.r*.08):(b.top?9+b.r*.04:4+b.r*.01); (b.top?mB:mA).push({x:b.x,y:0,z:b.y,a:hash(i,1,71)*TAU,sx:b.r,sy:b.h3}); return;}
+    if(site.isles||site.island){b.h3=site.id==='glacier'?(b.top?16+b.r*.2:8+b.r*.08):(b.top?9+b.r*.04:4+b.r*.01); (b.top?mB:mA).push({x:b.x,y:0,z:b.y,a:hash(i,1,71)*TAU,sx:b.r,sy:b.h3}); return;}
     b.h3=b.butte?70+b.r*.9+hash(i,2,71)*50:site.rocks?12+b.r*.28:site.banks?7+hash(i,3,71)*5:b.top?15+b.r*.05:6+b.r*.012;
     const q={x:b.x,y:0,z:b.y,a:hash(i,1,71)*TAU,sx:b.r,sy:b.h3};
     (b.butte?bu:b.top?mB:mA).push(q);
@@ -2819,7 +2881,7 @@ function g3Site(){
     m.material.userData.own=true; m.rotation.x=-Math.PI/2; m.position.set(site.shore.x-5100,14,(by0+by1)/2); S.add(m);
   }
   // things standing on it
-  const kind=site.id==='pattaya'||site.id==='lagoon'?'palm':site.id==='glacier'?'pine':site.banks?'canopy':'scrub', tr=[], te=[], um=[], ca=[];
+  const kind=site.id==='pattaya'||site.id==='lagoon'||site.id==='cayman'?'palm':site.id==='glacier'?'pine':site.banks?'canopy':'scrub', tr=[], te=[], um=[], ca=[];
   PROPS.forEach((p,i)=>{
     const y=Math.max(0,g3Ground(p.x,p.y))-.3;
     if(p.t===2) tr.push({x:p.x,y,z:p.y,a:hash(i,1,73)*TAU,sx:p.s*(kind==='canopy'?1.05:kind==='palm'?1.25:kind==='pine'?1.45:1.1)});
@@ -4175,7 +4237,8 @@ function siteIcon(i){
   svg.setAttribute('viewBox','0 0 '+sh.w+' 52'); svg.setAttribute('class','ci'); svg.setAttribute('aria-hidden','true');
   const pg=document.createElementNS(NS,'polygon');
   pg.setAttribute('points',sh.pts); pg.setAttribute('fill','none'); pg.setAttribute('stroke','currentColor');
-  pg.setAttribute('stroke-width','3'); pg.setAttribute('stroke-linejoin','round');
+  // a wide course is drawn smaller to fit the box, so its line is drawn thicker to stay as bold as the others
+  pg.setAttribute('stroke-width',String(3*Math.max(1,sh.w/52))); pg.setAttribute('stroke-linejoin','round');
   svg.appendChild(pg); return svg;
 }
 function syncOpts(){
@@ -4233,7 +4296,7 @@ function showTab(t){
     TOUR.forEach((st,i)=>{
       const s=SITES[st[0]], d=document.createElement('div'); d.className='opt site'+(i===cur?' cur':'');
       const l=document.createElement('span'); l.textContent=s.name;
-      const sm=document.createElement('small'); sm.textContent='Round '+(i+1)+' · two motos · '+s.laps+' laps each'; l.appendChild(sm);
+      const sm=document.createElement('small'); sm.textContent='Round '+(i+1)+' · two motos · '+lapsTxt(s.laps)+' each'; l.appendChild(sm);
       const n=document.createElement('span'); n.className='laps'; n.textContent=i<cur?(tour.hist[i]?ordinal(tour.hist[i])+' overall':'Done'):i===cur?(tour.round%2?'Moto 2 next':'Next'):'';
       d.append(siteIcon(st[0]),l,n); el.list.appendChild(d);
     });
@@ -4250,7 +4313,7 @@ function showTab(t){
       b.setAttribute('aria-pressed',String(i===sel.s));
       const l=document.createElement('span'); l.textContent=s.name;
       const d=document.createElement('small'); d.textContent=s.sub; l.appendChild(d);
-      const n=document.createElement('span'); n.className='laps'; n.textContent=s.laps+' laps';
+      const n=document.createElement('span'); n.className='laps'; n.textContent=lapsTxt(s.laps);
       const best=parseFloat(load('v12.best.'+s.id));
       if(best>0){const sm=document.createElement('small'); sm.textContent='Best '+fmt(best); n.appendChild(sm);}
       b.append(siteIcon(i),l,n);

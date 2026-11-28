@@ -13,7 +13,7 @@ const RSTAT=[['launch','Launch',.9,1.16],['corner','Corners',.9,1.16],['chopR','
 const CSTAT=[['top','Speed',.94,1.06],['acc','Accel',.8,1.2],['turn','Turn',.8,1.2],['stab','Stable',.75,1.35]];
 // The tour is a season of race weekends, ending at Havasu. Each weekend is two motos on the same course: moto points add up to the
 // weekend overall, and the weekend overall pays series points on the same scale.
-const TOUR=[[6,false],[2,false],[9,false],[3,false],[7,false],[4,false],[8,false],[0,false]], PTS=[25,20,16,13,11,9,7,5,3,1], MOTOS=TOUR.length*2;
+const TOUR=[[6,false],[10,false],[2,false],[9,false],[3,false],[7,false],[4,false],[8,false],[0,false]], PTS=[25,20,16,13,11,9,7,5,3,1], MOTOS=TOUR.length*2;
 const PAINTS=['#fcfdfb','#16222a','#ff8a3c','#ff4fa3','#a78bfa','#38c6f4','#2de0b0','#9be23c','#c98a3e'];
 const OPTS=[['ctrl','Steering',[['hold','Hold sides'],['slide','Slide']]],
   ['feel','Response',[['low','Calm'],['mid','Normal'],['high','Quick']]],
@@ -36,7 +36,7 @@ let tour={round:0,pts:RACERS.map(()=>0),wk:RACERS.map(()=>0),m1:null,m2:null,las
 let W=0,H=0,DPR=1,hudBottom=84;
 let skis=[],ais=[],pl=null,parts=[];
 let mode='idle',paused=false,clock=0,countT=0,card=0,finT=0,resAt=0,flashUntil=0;
-let lapSeen=0,lapStart=0,bestLap=0,rescSeen=0,landSeen=0;
+let lapSeen=0,lapStart=0,bestLap=0,rescSeen=0,landSeen=0,cpSeen=new Set();
 let stat={vmax:0,clean:0,turns:0,off:0,rough:0};
 let camX=0,camY=0,camA=0,zoom=.6,shake=0,gapT=0,tagA=null,tagB=null,idleS=0,revShown=-1,flowShown=-1,SK=1;
 let QUAL=2,slowT=0,ftAvg=.016,calmT=1,acc=0,padL=false,padR=false,bothT=0,lastSide=0;
@@ -47,6 +47,8 @@ const snd={ac:null};
 
 function store(k,v){try{localStorage.setItem(KEY+k,String(v));}catch(e){}}
 function load(k){try{return localStorage.getItem(KEY+k);}catch(e){return null;}}
+// "1 lap", "3 laps"
+function lapsTxt(n){return n+(n===1?' lap':' laps');}
 function fmt(t){const m=Math.floor(t/60), s=t-m*60; return m+':'+(s<10?'0':'')+s.toFixed(1);}
 function set(e,s){if(e._t!==s){e._t=s;e.textContent=s;}}
 function ordinal(p){return p+(p===1?'st':p===2?'nd':p===3?'rd':'th');}
@@ -86,9 +88,17 @@ function buildProps(){
       if(hash(q,8,21)<.6&&inLand(x2,y2,34)) PROPS.push({t:2,x:x2,y:y2,a:0,s:24+hash(q,9,21)*14});
     }
   }
-  if(site.banks||site.rocks||site.isles) LAND.forEach((b,i)=>{
+  if(site.beach){
+    const B=site.beach; let q=0;
+    for(let y=B.y0;y<B.y1;y+=52){
+      q++;
+      const x=B.x+80+(hash(q,3,23)-.5)*60, ci=Math.floor(hash(q,5,23)*6);
+      if(inLand(x,y,30)) PROPS.push(hash(q,4,23)<.25?{t:0,x,y,ci,a:Math.PI/2+(hash(q,6,23)-.5)*.3,s:17}:{t:1,x,y,ci,a:0,s:13});
+    }
+  }
+  if(site.banks||site.rocks||site.isles||site.island) LAND.forEach((b,i)=>{
     if(b.r<72||!b.top) return;
-    const n=site.banks?3:site.isles?4:2;
+    const n=site.banks?3:site.isles?4:site.island?1:2;
     for(let k=0;k<n;k++){
       const a=hash(i,k,31)*TAU, d=hash(i,k,32)*(b.r-58);
       PROPS.push({t:2,x:b.x+Math.cos(a)*d,y:b.y+Math.sin(a)*d,a:0,s:(site.banks?30:site.isles?24:20)+hash(i,k,33)*14});
@@ -189,7 +199,7 @@ function reset(){
   if(sel.paint>=0){pl.hull=PAINTS[sel.paint]; pl.trim=lum(pl.hull)>.6?COL.ink:'#fcfdfb';}
   for(const s of skis){s.wx=[];s.wy=[];s.wa=[];s.wnx=[];s.wny=[];s.wm=0;}
   LAPS=wd.laps; set(el.lapN,'/'+LAPS); set(el.posN,'/'+skis.length);
-  parts=[]; lapSeen=0; lapStart=0; bestLap=0; rescSeen=0; finT=0;
+  parts=[]; lapSeen=0; lapStart=0; bestLap=0; rescSeen=0; finT=0; cpSeen=new Set();
   stat={vmax:0,clean:0,turns:0,off:0,rough:0};
   stick=null; ptrs.clear(); tagA=tagB=null; gapT=0;
   camX=pl.x; camY=pl.y; camA=PATH[(pl.idx+4)%N].h;
@@ -214,10 +224,10 @@ function autoAdjust(p,margin){
 function tourLive(){return tour.round>0&&tour.round<MOTOS;}
 function tStop(){return Math.min(TOUR.length-1,Math.floor(tour.round/2));}
 function freshTour(){return {round:0,pts:RACERS.map(()=>0),wk:RACERS.map(()=>0),m1:null,m2:null,last:null,hist:[],r:sel.r,c:sel.c};}
-function saveTour(){store('tour12',JSON.stringify(tour));}
+function saveTour(){store('tour13',JSON.stringify(tour));}
 function loadTour(){
   try{
-    const t=JSON.parse(load('tour12'));
+    const t=JSON.parse(load('tour13'));
     if(t&&Array.isArray(t.pts)&&t.pts.length===RACERS.length&&Array.isArray(t.wk)&&t.wk.length===RACERS.length&&Array.isArray(t.hist)&&t.round>=0&&t.round<=MOTOS&&(t.round%2===0||Array.isArray(t.m1))&&
        t.r>=0&&t.r<RACERS.length&&t.c>=0&&t.c<CRAFTS.length) tour=t;
   }catch(e){}
@@ -245,7 +255,7 @@ function startCountdown(){
   mode='count'; countT=0; card=0; tileRush=3; calmT=.8;
   setLive(true);
   const what=gmode==='tour'?'Round '+(tStop()+1)+' · Moto '+(tour.round%2+1)+' · ':gmode==='items'?'Item race · ':gmode==='crates'?'Crate run · ':'';
-  el.banT.textContent=what+site.name+(rev?' reverse':'')+' · '+LAPS+' laps';
+  el.banT.textContent=what+site.name+(rev?' reverse':'')+' · '+lapsTxt(LAPS);
   el.banH.textContent=gmode==='items'?'Drive through item boxes, then tap the item button (or up arrow) to use it. Coins add top speed.':gmode==='crates'?'Smash the crates, hit the ramps, dodge the mines. Three lives.':hintText();
   if(gmode==='crates') el.banT.textContent=what+site.name;
   el.banner.hidden=false;
@@ -637,12 +647,18 @@ function update(dt){
       }else if(f<0) blip(200,.2,'sawtooth',.1);
       if(pl.out>0){if(pl.out<=dt*1.5) stat.off++; flash('Off course','bad',300);}
       if(pl.resc!==rescSeen){rescSeen=pl.resc; flash('Back on course','',1100);}
-      if(pl.lap!==lapSeen){
-        if(pl.lap>lapSeen){
-          const lt=wd.t-lapStart; lapStart=wd.t;
-          if(!(bestLap>0)||lt<bestLap) bestLap=lt;
-          if(pl.lap<LAPS) flash((pl.lap===LAPS-1?'White flag · last lap':'Lap '+(pl.lap+1)+' · '+fmt(lt)),'',1600);
-        }
+      // a named checkpoint passed: its name and the time so far
+      if(wd.cps) for(let i=0;i<wd.cps.length;i++){
+        const c=wd.cps[i], k=pl.lap*64+i;
+        if(!cpSeen.has(k)&&pl.lap>=0&&(pl.idx-c.idx+N)%N<30){cpSeen.add(k); flash(c.name+' · '+fmt(wd.t),'',1600);}
+      }
+      // a one-lap race is on its last lap from the start: the white flag comes out once the field is under way
+      if(LAPS===1&&!isArc()&&!cpSeen.has(-1)&&pl.lap===0&&pl.idx>FRONT+40){cpSeen.add(-1); flash('White flag · one lap','',1600);}
+      // laps count up only: dropping back behind the line and crossing it again is not a lap
+      if(pl.lap>lapSeen){
+        const lt=wd.t-lapStart; lapStart=wd.t;
+        if(!(bestLap>0)||lt<bestLap) bestLap=lt;
+        if(pl.lap<LAPS) flash((pl.lap===LAPS-1?'White flag · last lap':'Lap '+(pl.lap+1)+' · '+fmt(lt)),'',1600);
         lapSeen=pl.lap;
       }
       if(pl.bump>.27){shake=Math.max(shake,2.2); blip(90,.12,'sine',.2);}
@@ -782,7 +798,8 @@ function siteIcon(i){
   svg.setAttribute('viewBox','0 0 '+sh.w+' 52'); svg.setAttribute('class','ci'); svg.setAttribute('aria-hidden','true');
   const pg=document.createElementNS(NS,'polygon');
   pg.setAttribute('points',sh.pts); pg.setAttribute('fill','none'); pg.setAttribute('stroke','currentColor');
-  pg.setAttribute('stroke-width','3'); pg.setAttribute('stroke-linejoin','round');
+  // a wide course is drawn smaller to fit the box, so its line is drawn thicker to stay as bold as the others
+  pg.setAttribute('stroke-width',String(3*Math.max(1,sh.w/52))); pg.setAttribute('stroke-linejoin','round');
   svg.appendChild(pg); return svg;
 }
 function syncOpts(){
@@ -840,7 +857,7 @@ function showTab(t){
     TOUR.forEach((st,i)=>{
       const s=SITES[st[0]], d=document.createElement('div'); d.className='opt site'+(i===cur?' cur':'');
       const l=document.createElement('span'); l.textContent=s.name;
-      const sm=document.createElement('small'); sm.textContent='Round '+(i+1)+' · two motos · '+s.laps+' laps each'; l.appendChild(sm);
+      const sm=document.createElement('small'); sm.textContent='Round '+(i+1)+' · two motos · '+lapsTxt(s.laps)+' each'; l.appendChild(sm);
       const n=document.createElement('span'); n.className='laps'; n.textContent=i<cur?(tour.hist[i]?ordinal(tour.hist[i])+' overall':'Done'):i===cur?(tour.round%2?'Moto 2 next':'Next'):'';
       d.append(siteIcon(st[0]),l,n); el.list.appendChild(d);
     });
@@ -857,7 +874,7 @@ function showTab(t){
       b.setAttribute('aria-pressed',String(i===sel.s));
       const l=document.createElement('span'); l.textContent=s.name;
       const d=document.createElement('small'); d.textContent=s.sub; l.appendChild(d);
-      const n=document.createElement('span'); n.className='laps'; n.textContent=s.laps+' laps';
+      const n=document.createElement('span'); n.className='laps'; n.textContent=lapsTxt(s.laps);
       const best=parseFloat(load('v12.best.'+s.id));
       if(best>0){const sm=document.createElement('small'); sm.textContent='Best '+fmt(best); n.appendChild(sm);}
       b.append(siteIcon(i),l,n);

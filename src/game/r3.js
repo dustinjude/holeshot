@@ -12,6 +12,8 @@ const PAL3={
 PAL3.arena={zen:'#2b2f63',hor:'#f3a66b',deep:'#123a52',shal:'#2f7f8f',sand:'#7a7f86',wet:'#5a5f66',top:'#6b8f4a',tree:'#3f6b3a',rock:'#6a6f76',far:'#4a3f5a',fog:.00032,cloud:.5,sun:[.7,.1,.7],sunCol:'#ffab66',sunI:.5,hemiI:.62};
 PAL3.glacier={zen:'#2f6fb8',hor:'#dfe8ee',deep:'#0b3a4c',shal:'#3e8e9c',sand:'#8b8f8c',wet:'#545b5a',top:'#3f5f3c',tree:'#24452e',rock:'#7f8584',far:'#6f8296',fog:.00022,cloud:.4,sun:[-.4,.55,-.73],snow:[1100,760]};
 PAL3.lagoon={zen:'#1d7fd6',hor:'#d8f2f4',deep:'#0a6f8a',shal:'#46d6cf',sand:'#f4ecd2',wet:'#d9c99a',top:'#5aa35a',tree:'#2f8a45',rock:'#9a9a8a',far:'#4f8f6a',fog:.0002,cloud:.55,sun:[.35,.62,-.7]};
+// Grand Cayman: clear Caribbean water, white sand, a flat green island and a high sun
+PAL3.cayman={zen:'#1874d2',hor:'#d6f0f4',deep:'#0a5d86',shal:'#38c9cf',sand:'#f6efd8',wet:'#dccb9c',top:'#5d9e4f',tree:'#2f8a45',rock:'#a29d8a',far:'#5f9a72',fog:.00018,cloud:.5,sun:[.25,.7,-.66]};
 PAL3.river={zen:'#4c8cc8',hor:'#dde4e6',deep:'#1c4a56',shal:'#3f7f83',sand:'#b8b4aa',wet:'#8c8a84',top:'#5c8f48',tree:'#3d7440',rock:'#8a8780',far:'#8f9aa3',fog:.0003,cloud:.6,sun:[.5,.5,.7]};
 const CARS=['#e8e8e4','#30363a','#a8322c','#2b5d9c','#c8c2b0','#5a6066'];
 const WAVE_GLSL=`
@@ -350,6 +352,7 @@ function g3Backdrop(S,P,cx,cz,R){
       if(id==='bayou') return (layer?130:210)+70*n+j*40;
       if(id==='glacier') return (layer?420:650)+(layer?900:1500)*n*n+j*(layer?120:220);
       if(id==='lagoon') return Math.max(0,n-.56)*(layer?1100:2000);
+      if(id==='cayman') return 0;                                  // open sea all round the island
       if(cityId) return layer?(hash(i,7,47)>.35?110+hash(i,8,47)*(id==='river'?620:380):50):(id==='arena'?150:210)+120*n;
       // sea sites: land only along one side. A beach town has low hills behind a line of towers; the open ocean has a headland.
       const w=clamp((-Math.cos(a)-.25)*3,0,1); if(w<=0) return 0;
@@ -544,7 +547,7 @@ function g3Site(){
   LAND.forEach((b,i)=>{
     if(b.obj){b.h3=0; b.butte=false; return;}
     b.butte=!!(site.rocks&&b.top);
-    if(site.isles){b.h3=site.id==='glacier'?(b.top?16+b.r*.2:8+b.r*.08):(b.top?9+b.r*.04:4+b.r*.01); (b.top?mB:mA).push({x:b.x,y:0,z:b.y,a:hash(i,1,71)*TAU,sx:b.r,sy:b.h3}); return;}
+    if(site.isles||site.island){b.h3=site.id==='glacier'?(b.top?16+b.r*.2:8+b.r*.08):(b.top?9+b.r*.04:4+b.r*.01); (b.top?mB:mA).push({x:b.x,y:0,z:b.y,a:hash(i,1,71)*TAU,sx:b.r,sy:b.h3}); return;}
     b.h3=b.butte?70+b.r*.9+hash(i,2,71)*50:site.rocks?12+b.r*.28:site.banks?7+hash(i,3,71)*5:b.top?15+b.r*.05:6+b.r*.012;
     const q={x:b.x,y:0,z:b.y,a:hash(i,1,71)*TAU,sx:b.r,sy:b.h3};
     (b.butte?bu:b.top?mB:mA).push(q);
@@ -559,7 +562,7 @@ function g3Site(){
     m.material.userData.own=true; m.rotation.x=-Math.PI/2; m.position.set(site.shore.x-5100,14,(by0+by1)/2); S.add(m);
   }
   // things standing on it
-  const kind=site.id==='pattaya'||site.id==='lagoon'?'palm':site.id==='glacier'?'pine':site.banks?'canopy':'scrub', tr=[], te=[], um=[], ca=[];
+  const kind=site.id==='pattaya'||site.id==='lagoon'||site.id==='cayman'?'palm':site.id==='glacier'?'pine':site.banks?'canopy':'scrub', tr=[], te=[], um=[], ca=[];
   PROPS.forEach((p,i)=>{
     const y=Math.max(0,g3Ground(p.x,p.y))-.3;
     if(p.t===2) tr.push({x:p.x,y,z:p.y,a:hash(i,1,73)*TAU,sx:p.s*(kind==='canopy'?1.05:kind==='palm'?1.25:kind==='pine'?1.45:1.1)});

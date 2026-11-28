@@ -18,7 +18,9 @@ function arcadeSetup(){
     // a solo run: the rivals stay at home, and one lap is the whole level
     for(const s of skis) if(!s.me&&s.g3){s.g3.visible=false; if(s.g3s) s.g3s.visible=false;}
     wd.skis=[pl]; skis=[pl]; ais=[]; wd.laps=1; LAPS=1;
-    for(let c=1;c<5;c++) arc.cps.push(Math.round(FRONT+(N-FRONT)*c/5));
+    // checkpoints every fifth of a lap, or closer on a long lap, so a lost life never sends you far back
+    const nc=Math.max(4,Math.floor(N/200));
+    for(let c=1;c<=nc;c++) arc.cps.push(Math.round(FRONT+(N-FRONT)*c/(nc+1)));
     for(const j of arc.cps) for(const sd of [-1,1]) addObj('cp',j,sd*(PATH[j].w+6));
     const v=pl.top*.92;
     for(let j=FRONT+24;j<N-14;){
@@ -53,9 +55,11 @@ function arcadeSetup(){
     }
     arc.total=objs.filter(o=>o.t==='crate').length;
   }else{
-    for(const f of [.2,.5,.8]){const j=Math.round(N*f), w=PATH[j].w; for(let i=0;i<5;i++) addObj('box',j,(i-2)*w*.36);}
-    for(let c=0;c<14;c++){
-      const j=Math.round(FRONT+20+(N-40)*(c+.5)/14), o=PATH[(j+4)%N].c*PATH[j].w*.4*(hash(c,2,93)<.6?1:-1);
+    // three rows of item boxes and 14 coin groups a lap, or more on a long lap so they come as often as on the others
+    const nb=Math.max(3,Math.floor(3*N/750)), ng=Math.max(14,Math.floor(14*N/750));
+    for(let b=0;b<nb;b++){const j=Math.round(N*(nb===3?[.2,.5,.8][b]:(b+.5)/nb)), w=PATH[j].w; for(let i=0;i<5;i++) addObj('box',j,(i-2)*w*.36);}
+    for(let c=0;c<ng;c++){
+      const j=Math.round(FRONT+20+(N-40)*(c+.5)/ng), o=PATH[(j+4)%N].c*PATH[j].w*.4*(hash(c,2,93)<.6?1:-1);
       for(let i=0;i<3;i++) addObj('coin',j+i*2,o,{h:3});
     }
   }
