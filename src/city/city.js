@@ -533,7 +533,8 @@ const EV={
   if(!g)ch.unshift(["Pay him off ($1,000)",()=>{S.cash-=1000;S.bribes++;S.heat=cl(S.heat-20);bond("kow",3);rem("kow","On your payroll now");log("He leaves $1,000 heavier. \"I'll swing by next month.\"")},S.cash<1000]);
   modal("Inspection",(g?"Reyes":"Kowalski")+" walks through your garage with a coffee, counting skis with no hull numbers. \"Busy shop.\"",ch)},
  finale(){const v=verdict();modal(v[0],v[1]+epi(),[["Keep living here",()=>{S.free=1;log("The season's done. The city's still here. So are you.")}],["Start a new life",reset]])}};
-function verdict(){return S.tourPos===1?["Champion","A whole season, and your name is at the top of the sheet at Havasu. Whatever else you did to get here, nobody can say you didn't earn that part."]
+function verdict(){return moreVerdict()||verdict0()}
+function verdict0(){return S.tourPos===1?["Champion","A whole season, and your name is at the top of the sheet at Havasu. Whatever else you did to get here, nobody can say you didn't earn that part."]
  :S.gar&&S.chop?["Kingpin of bay three","A season in and you own a garage that never has the same ski twice. The money's unreal. So is the list of people who want it."]
  :S.gar?["Legit","Your name's on the sign. Grease under your nails, taxes filed, nobody looking for you. You did it the hard way. Mostly."]
  :S.cash>=5000&&S.heat<40?["Clean-ish","A season in, money in the bank, nobody looking for you. Boring. Beautiful."]

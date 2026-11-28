@@ -533,7 +533,8 @@ const EV={
   if(!g)ch.unshift(["Pay him off ($1,000)",()=>{S.cash-=1000;S.bribes++;S.heat=cl(S.heat-20);bond("kow",3);rem("kow","On your payroll now");log("He leaves $1,000 heavier. \"I'll swing by next month.\"")},S.cash<1000]);
   modal("Inspection",(g?"Reyes":"Kowalski")+" walks through your garage with a coffee, counting skis with no hull numbers. \"Busy shop.\"",ch)},
  finale(){const v=verdict();modal(v[0],v[1]+epi(),[["Keep living here",()=>{S.free=1;log("The season's done. The city's still here. So are you.")}],["Start a new life",reset]])}};
-function verdict(){return S.tourPos===1?["Champion","A whole season, and your name is at the top of the sheet at Havasu. Whatever else you did to get here, nobody can say you didn't earn that part."]
+function verdict(){return moreVerdict()||verdict0()}
+function verdict0(){return S.tourPos===1?["Champion","A whole season, and your name is at the top of the sheet at Havasu. Whatever else you did to get here, nobody can say you didn't earn that part."]
  :S.gar&&S.chop?["Kingpin of bay three","A season in and you own a garage that never has the same ski twice. The money's unreal. So is the list of people who want it."]
  :S.gar?["Legit","Your name's on the sign. Grease under your nails, taxes filed, nobody looking for you. You did it the hard way. Mostly."]
  :S.cash>=5000&&S.heat<40?["Clean-ish","A season in, money in the bank, nobody looking for you. Boring. Beautiful."]
@@ -562,7 +563,7 @@ function end(k){S.over=k;save();modal(ENDS[k][0],ENDS[k][1]+epi(),[["Start a new
 // you (the racing side plays them, through HS.open with mode "run"), product to buy and move, a wanted level that sends more
 // patrol skis, a lawyer, somewhere better to live, a back-room card game, a gun, and Vance, who wants the docks. Its state is S.z.
 function freshZ(){return {stash:{green:0,pills:0,powder:0},sold:{d:0},habit:0,usedDay:-9,crash:0,pad:0,piece:0,drew:0,seen:0,v:0,vDay:0,vRuns:0,vStall:0,vanHit:0,hitDay:0,
-  dexDead:0,ledger:0,docks:0,news:[],nightDay:0,vanceDay:0,salDay:0,strayDay:-9,lawyer:-9,det:-9}}
+  dexDead:0,ledger:0,docks:0,news:[],nightDay:0,vanceDay:0,salDay:0,strayDay:-9,lawyer:-9,det:-9,big:0,raided:0}}
 const PAD=[["Studio over the laundromat",400,0,""],["One-bedroom by the court",750,1500,"A one-bedroom over the bodega. Doors that lock, a closet with a false back, a view of the court."],
   ["House on the lake",0,28000,"Two bedrooms on the water and a dock of your own. Nobody watches you launch."]];
 const stars=()=>Math.ceil(S.heat/20);
@@ -579,7 +580,7 @@ function lawFor(x){
 let RUN=null,bjIn=0;
 // o: {type:"drop" or "chase", name, site, rev, extra (stars added for this job), done(res)}. The race page takes over until it reports.
 function waterRun(o){
-  const w=lawFor(o.extra);RUN=o;S.race={kind:"run",day:S.day};save();
+  const w=lawFor(o.extra);if(o.decoy)w.cops=Math.max(1,w.cops-1);RUN=o;S.race={kind:"run",day:S.day};save();
   HS.open({mode:"run",run:{type:o.type,name:o.name,site:o.site,rev:!!o.rev,laps:1,cops:w.cops,level:w.level,pace:.3+.15*w.level},turn:1+.008*lvl("drive"),top:S.en<40?.98:1,done:runDone,exit:cityBack});
   host.hidden=true;
 }
@@ -628,7 +629,7 @@ function nightRun(boss){
     S.z[v?"vanceDay":"nightDay"]=S.day;
     if(res.ok){
       const p=Math.round(pay*Math.max(.3,res.cargo/100)/10)*10;S.cash+=p;S.rep=cl(S.rep+3);
-      if(v){S.z.vRuns++;if(!S.z.dexDead){bond("dex",-6);rem("dex","Heard you're riding for Vance")}}else{bond("dex",5);trust("dex",3);rem("dex","Brought a load in off the boat")}
+      if(v){S.z.vRuns++;if(!S.z.dexDead){bond("dex",-6);rem("dex","Heard you're riding for Vance")}}else{bond("dex",5);trust("dex",3);rem("dex","Brought a load in off the boat");did("nightrun")}
       crime(res.hits?16:9);
       modal("Load's in",(v?"A man with a clipboard and no expression checks the seals in the cold storage on Pier 4. ":"Dex is waiting on the mud with a hand truck and the lights off. ")+(res.cargo>=95?"Every seal intact. ":res.cargo>=60?"A couple of cases took water. ":"Half of it's on the bottom. ")+$$(p)+" in an envelope.",[["OK",0]]);
     }else if(res.how==="quit"){
@@ -668,7 +669,7 @@ function sold(at,k,n,p){
   log("You move "+units(n,k)+" of "+GOODS[k].n.toLowerCase()+" in "+SPOTS[at][0]+" for "+$$(n*p)+".");
   if(w&&STRAIGHT.includes(w)&&pp(w).met&&!(w==="nia"&&S.q.nia===2)&&r()<.3){
     scar(w,14,6);bond(w,-6);rem(w,"Caught you dealing "+(at==="gym"?"behind her gym":"in her bar"));
-    log(P[w].n+" sees the hand-off. "+(w==="june"?"\"Kids train here.\" She says it very quietly.":"She doesn't say anything. She just wipes down the bar where you were sitting."));
+    log(P[w].n+" sees the hand-off. "+(w==="june"?"\"Kids train here.\" She says it very quietly.":pp("nia").know>=2?"\"My brother's doing eighteen months for less than what's in your pocket.\" She goes to the other end of the bar and stays there.":"She doesn't say anything. She just wipes down the bar where you were sitting."));
   }
   if(S.z.v>=1&&S.z.v<=5&&at!=="bar"&&r()<.2)pq("corner");
   crime(Math.ceil(n*GOODS[k].h)+2);copRoll(.8);
@@ -887,10 +888,50 @@ Object.assign(EV,{
    ["Show them the piece",()=>drew("They look at it, then at each other, then at the long walk back to the truck. Nobody says anything clever.",()=>{S.rep=cl(S.rep+6);scar("marcus",12,6);rem("marcus","You pulled a gun on his crew")})],["Leave it where it is",j0]])};
  EV.dexRevenge=()=>{if(S.z.dexDead||!S.revenge)return;if(!S.z.piece)return d0();modal("Company","Two men you've never seen are sitting on your bed. One of them is holding your toothbrush. Neither of them has seen what's in your waistband.",[
    ["Come in with the piece up",()=>{S.revenge=0;drew("They put the toothbrush down very slowly and leave by the door they came in.",()=>{scar("dex",15,8);rem("dex","You pulled a gun on his people")})}],["Leave it where it is",d0]])}}
+// --- the big one ---
+// A gambling boat anchored past the limit. One try. Crew take a cut and shift the odds; the way out is a run with the bag.
+function bigScore(){
+  const go=(lena,fitz)=>()=>{
+    const cut=1-(lena?.2:0)-(fitz?.2:0),who=(lena&&fitz?"Lena and Fitz":lena?"Lena":fitz?"Fitz":"nobody"),
+     how=(k,p,txt)=>[txt+" · "+SK[k]+" "+lvl(k),()=>{
+       S.cash-=500;tick(3);xp(k,2);
+       if(r()>=p+(lena&&k!=="charm"?.14:0)+(fitz?.05:0)){
+         S.z.big=1;S.en=cl(S.en-40);S.mood=cl(S.mood-15);news("Security on the gaming vessel Second Wind detained a group overnight. The Coast Guard is investigating.");crime(25);
+         if(S.over)return;
+         return modal("Blown","A pit boss with a radio makes you before you're past the roulette wheel. "+(lena?"Lena puts two of them through a blackjack table buying you the rail. ":"")+"You go over the side into black water with nothing but the $500 you already spent."+(r()<.5?"":" A patrol boat is waiting where you come up."),[["Swim",()=>{if(r()<.45)jail()}]])}
+       waterRun({type:"drop",name:"The Second Wind",site:"stormhead",extra:3,decoy:fitz,done:res=>{
+         if(res.ok){
+           const p=Math.round(14000*Math.max(.35,res.cargo/100)*cut/100)*100;S.z.big=2;S.cash+=p;S.rep=cl(S.rep+15);S.mood=cl(S.mood+25);
+           for(const k of["sal","dex","marcus"])if(pp(k).met&&!gone(k)){bond(k,5);rem(k,"Knows who took the Second Wind")}
+           news("The gaming vessel Second Wind was robbed overnight by "+(lena||fitz?"a crew":"a lone thief")+" who escaped by jet ski. The owners decline to say how much was taken.");crime(40);
+           if(S.over)return;
+           modal("The Second Wind",(res.cargo>=90?"The bag comes ashore dry. ":"Some of it's floating in the bay for the gulls. ")+(cut<1?"You split it on the hood of the truck by flashlight, "+who+" counting out loud. ":"You count it alone, twice. ")+"Your end is "+$$(p)+". For about a minute nobody says anything, and then everybody's laughing too loud.",[["Count it again",0]]);
+         }else if(res.how==="quit"){S.z.big=1;crime(20);log("You let the bag go in open water and it sinks like it never happened. "+(cut<1?who+" won't be calling you again.":"Nobody knows but you."))}
+         else{S.z.big=1;busted("They found the bag. Pike says not to say anything to anybody, including her.")}
+       }})},S.cash<500];
+    modal("The Second Wind","Going in with "+who+". How do you get to the cage?",[
+      how("charm",.4+.1*lvl("charm"),"Deal yourself in and walk it out the service door"),
+      how("wrench",.4+.1*lvl("wrench"),"Kill the generator and take it in the dark"),
+      [S.z.piece?"Come over the stern rail with the piece · Fighting "+lvl("fight"):"Come over the stern rail (you'd need a piece)",how("fight",.42+.1*lvl("fight"),"")[1],!S.z.piece||S.cash<500],
+      ["Not tonight",0]])};
+  modal("The Second Wind","A gambling boat anchored three miles out, where nobody's laws quite reach. Friday nights the cage holds more cash than Gold Line sees in a year. It costs $500 in gear to try, and you get one try. Who's coming? Each of them takes a fifth.",[
+   ["Lena and Fitz · muscle, and a tender to draw one patrol off",go(1,1)],
+   ["Lena · she hits like a closing door",go(1,0)],
+   ["Fitz · he runs a decoy on the way out",go(0,1)],
+   ["Alone · nobody to pay, nobody to save you",go(0,0)],
+   ["Walk away",0]]);
+}
+function moreVerdict(){
+  const z=S.z;
+  return z.v===6?["Vance's man","A season in, the docks answer to you, and you answer to a man who eats oranges in a freezer. The money has never been better. Nobody shells seeds in the back booth."]
+   :z.big===2&&z.pad===2?["Made","You took a casino off the water and bought a house on it. Everybody knows and nobody can prove it. That's the whole trick."]
+   :z.v===9&&z.docks?["The docks are yours","Vance is a story people tell now. You get a cut of every container, and Dex buys the coffee. It only cost a warehouse."]:null;
+}
 function moreEpi(){
   const z=S.z;
   return [z.v===6?"Dex is dead and you hold his corner of the docks for Vance. The money's good. You don't sit in the back booth.":z.v===7?"Dex is dead. You weren't there.":z.v===9?(z.docks?"Vance is gone. The docks pay you a cut and Dex buys the coffee.":"Vance is in federal custody. So is a Harbor Patrol sergeant. The street knows who made the call."):z.v===4?"You and Vance aren't finished.":"",
-    z.pad===2?"You own a house on the lake, with a dock.":z.pad===1?"You've got a one-bedroom with doors that lock.":"",z.habit>=6?"You've got a habit you keep calling a hobby.":""];
+    z.pad===2?"You own a house on the lake, with a dock.":z.pad===1?"You've got a one-bedroom with doors that lock.":"",z.habit>=6?"You've got a habit you keep calling a hobby.":"",
+    z.big===2?"The Second Wind sails with twice the security now.":"",z.raided?"You're on probation, and one bad night from finishing the sentence.":""];
 }
 function moreYou(){
   const z=S.z,st=z.stash,row=(a,b)=>"<div class=\"row\"><span>"+a+"</span><b>"+b+"</b></div>";
@@ -907,6 +948,7 @@ function moreActs(at,add){
   if(at==="docks"){
     if(!z.dexDead&&D.met&&D.b>=30&&S.pk>=1&&stage("dex")>=0)add("Night run for Dex",z.nightDay===S.day?"one a night":night?"a load off the boat · you ride it":"after 8pm",night&&z.nightDay!==S.day&&S.en>=20,()=>nightRun("dex"),1);
     if(z.v===2||z.v===6)add("Run a load for Vance",z.vanceDay===S.day?"one a night":night?"$1,800 · you ride it":"after 8pm",night&&z.vanceDay!==S.day&&S.en>=20,()=>nightRun("vance"),1);
+    if(!z.big&&S.rep>=30&&S.day>=18&&(stage("sal")>=2||S.q.dex===2||z.v===6||z.v===9))add("The Second Wind","the big one · a casino boat, three miles out",S.cash>=500&&S.en>=30,bigScore,1);
     if(z.v===4)add("Pier 4",S.day>=z.hitDay?"end it with Vance":"they're watching for you · day "+z.hitDay,S.day>=z.hitDay,pier4,1);
   }
   if(at==="pawn"){const ss=stage("sal");
@@ -918,8 +960,11 @@ function moreActs(at,add){
     if(z.piece&&late)add("Rob the back-room game","the piece does the talking",true,robGame);
     if(late)add("Close the bar down with a stranger",S.day-z.strayDay<3?"not tonight":"see where it goes",S.day-z.strayDay>=3&&S.mood>=35,stranger);
   }
-  if(at==="garage"&&z.seen)add("Respray the ski","$250 · Harbor Patrol knows the old colours",S.cash>=250&&(stage("tommy")>=0||!!S.gar),()=>{S.cash-=250;z.seen=0;S.heat=cl(S.heat-6);tick(2);log("Two hours with a spray gun and a roll of tape. Different ski. Same idiot riding it.")});
+  if(at==="garage"&&z.seen)add("Respray the ski","$250 · Harbor Patrol knows the old colours",S.cash>=250&&(stage("tommy")>=0||!!S.gar),()=>{S.cash-=250;z.seen=0;S.heat=cl(S.heat-6);tick(2);log("Two hours with a spray gun and a roll of tape. Different ski. Same idiot riding it.");did("respray")});
 }
+Object.assign(ASK,{
+ dex_run:{who:"dex",when:()=>!S.z.dexDead&&pp("dex").b>=30&&S.pk>=1&&r()<.3,text:"Boat's sitting off the point tonight and my regular rider's in county. Bring it in for me? After dark, at the docks.",need:"nightrun",what:"Bring Dex's load in off the boat tonight"},
+ marcus_ramp:{who:"marcus",when:()=>!!S.z.seen&&stage("marcus")>=1&&r()<.5,text:"Harbor Patrol's been parked on the ramp all week because of YOUR ski. Paint the damn thing before they start checking everybody's numbers.",need:"respray",due:1,what:"Respray your ski so the patrol leaves the ramp",win:()=>{S.rep=cl(S.rep+2);log("Marcus looks the new paint over. \"Ugly. Good. Nobody'll remember it.\"")}}});
 // ---------- in your own words ----------
 // Joined into city.js at //@talk. Any of the eight can be spoken to in the player's own words: the line goes to the site's
 // /api/talk function (netlify/functions/talk.mts), Claude writes the reply in character, and it comes back with small changes to

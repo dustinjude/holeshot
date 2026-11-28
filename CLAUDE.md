@@ -118,7 +118,8 @@ none of them is a character in the city.
   ski, somewhere better to live (`PAD`), work from Sal (collections, the marina job), blackjack and a stranger at the Low
   End after 9, a gun (`piece`) that changes how being cornered ends, morning radio (`news()`), and Vance (`S.z.v`, see the
   comment above `noDex`): he wants the docks, Dex can die, and it ends by the book (Kowalski), in fire (allies), or with you
-  holding the docks for him. The first raid costs a week and half the money; the second is the end.
+  holding the docks for him. One big score late on, the Second Wind (`bigScore`): a crew that takes a cut, then a run with
+  the bag. The first raid costs a week and half the money; the second is the end.
 - **Live lines** (`src/city/talk.js` at `//@talk`, `netlify/functions/talk.mts`, served at `/api/talk`): "Say something in your
   own words" in any conversation. Claude writes the reply in character, through Netlify's AI Gateway, so there is no key in
   the repo or the browser. The rules are in the function: adults, strong language and crime are in; **nothing sexually
