@@ -32,11 +32,12 @@ const UP={bed:["A real bed",350,"better sleep"],fridge:["A fridge that works",25
 const $=id=>root.getElementById(id),cl=(v,a=0,b=100)=>Math.max(a,Math.min(b,v)),r=()=>Math.random(),$$=n=>"$"+Math.round(n).toLocaleString(),pick=a=>a[Math.floor(r()*a.length)];
 const mkp=()=>({b:5,t:50,cap:100,met:0,seen:1,talk:0,gift:0,know:0,mood:"flat",rom:0,sorry:-9,date:0,b0:5,t0:50,mem:[]});
 const fresh=()=>{const pp={};for(const k in P)pp[k]=mkp();return {day:1,h:8,cash:200,en:80,food:70,mood:60,rep:0,heat:0,at:"home",crates:0,car:0,tune:0,coupe:0,missed:0,bribes:0,crime:0,crimes:0,pk:0,mwins:0,salt:0,tsh:0,gar:0,chop:0,loan:null,lastEv:0,niaWait:0,prom:0,free:0,fin:0,openDay:0,dragDay:0,season0:0,life:5*HS.info().total,hot:0,race:null,tourPos:0,
- sk:{drive:0,wrench:0,charm:0,fight:0},home:{bed:0,fridge:0,tv:0,safe:0},q:{dex:0,rosa:0,marcus:0,nia:0,june:0},pp,inbox:[],proms:[],done:{},pend:[],log:[],over:0,z:freshZ()}};
+ sk:{drive:0,wrench:0,charm:0,fight:0},home:{bed:0,fridge:0,tv:0,safe:0},q:{dex:0,rosa:0,marcus:0,nia:0,june:0},pp,inbox:[],proms:[],done:{},pend:[],log:[],over:0,z:freshZ(),cl:freshCl(),gig:freshGig(),tn:freshTn()}};
 let S=fresh();
 try{const o=JSON.parse(localStorage.getItem("shc"));if(o){Object.assign(S,o);const f=fresh();
   for(const k of["sk","home","q"])S[k]=Object.assign(f[k],o[k]||{});
   S.z=Object.assign(f.z,o.z||{});S.z.stash=Object.assign(freshZ().stash,(o.z||{}).stash||{});
+  S.cl=Object.assign(f.cl,o.cl||{});S.gig=Object.assign(f.gig,o.gig||{});S.tn=Object.assign(f.tn,o.tn||{});
   S.pp=f.pp;for(const k in P){const p=S.pp[k];if(o.pp)Object.assign(p,o.pp[k]||{});else{const v=(o.rel||{})[k]||0,m=(o.mem||{})[k]||[];p.b=cl(8+v*2.2);p.t=cl(50+Math.min(0,v)*2);p.met=v||m.length?1:0;p.mem=m;p.seen=S.day;p.b0=p.b;p.t0=p.t}}
   if(!o.pp){const n=S.pp.nia;if(o.dating)n.rom=2;if(S.q.nia===3||S.q.nia===2)n.rom=3;if(S.q.nia===4){n.rom=4;n.t=15}if(S.q.rosa===3)S.pp.rosa.t=10;if(S.q.marcus===3)S.pp.marcus.b=70;if(S.q.marcus===2)S.pp.marcus.t=25}
   delete S.rel;delete S.mem;delete S.dating;
@@ -67,13 +68,20 @@ const income=()=>(S.gar?220+30*lvl("wrench")+(stage("tommy")>=2?60:0):0)+(S.chop
 const rentDay=d=>d>1&&d%7===1,rentAmt=()=>{const b=PAD[S.z.pad][1];return S.q.nia===3?b/2:b};
 const open=()=>$("modal").classList.contains("show"),pq=k=>{S.pend.includes(k)||S.pend.push(k)};
 let MQ=[],RT=0;
-function draw(t,x,ch){modal.cur=[t,x,ch];$("sheet").innerHTML=`<h3>${t}</h3><div class="body">${x}</div><div class="acts">${ch.map((c,i)=>`<button data-ch="${i}"${c[2]?" disabled":""}>${c[0]}</button>`).join("")}</div>`;modal.ch=ch;$("modal").classList.add("show")}
+// A dialog comes up from the bottom. When its title names a person (see whoOf in ui.js) it shows their face, and for one of
+// the eight, where you stand with them. Texts look like texts.
+function draw(t,x,ch){
+  modal.cur=[t,x,ch];const k=whoOf(t),q=k&&P[k]?pp(k):null;
+  const head=k?`<div class="who">${face(k,q?moodOf(k):"flat",64)}<div><h3>${t}</h3>${q&&q.met?`<small>${q.rom?ROM[q.rom]:STG[stage(k)]}</small><div class="bars"><div><i style="width:${q.b}%"></i></div><div class="tr"><i style="width:${q.t}%"></i></div></div>`:q?`<small>${P[k].role}</small>`:""}</div></div>`:`<h3>${t}</h3>`;
+  $("sheet").className="sheet"+(/^Text from |^Unknown number$/.test(t)?" text":"");
+  $("sheet").innerHTML=`${head}<div class="body">${x}</div><div class="acts">${ch.map((c,i)=>`<button data-ch="${i}"${c[2]?" disabled":""}>${c[0]}</button>`).join("")}</div>`;
+  modal.ch=ch;$("modal").classList.add("show");$("sheet").scrollTop=0}
 function modal(t,x,ch,lock){
   if(S.over&&!lock)return;
   if(lock)MQ=[];else if(open()){MQ.push([t,x,ch]);return}
   draw(t,x,ch);
 }
-function reset(){S=fresh();HS.resetAll();MQ=[];clearInterval(RT);RT=0;$("modal").classList.remove("show");log("Day 1. $200, a studio apartment and a bare ski. Rent's due on day 8. The first race weekend is day 5.")}
+function reset(){S=fresh();HS.resetAll();MQ=[];clearInterval(RT);RT=0;PH.open=0;TRAVEL=null;lastCash=null;$("modal").classList.remove("show");log("Day 1. $200, a studio apartment and a bare ski. Rent's due on day 8. The first race weekend is day 5.")}
 function hot(){if(S.heat<100||S.over)return;const K=pp("kow");if(!S.tipped&&!S.kowGone&&K.b>=35&&K.t>=55){S.tipped=1;S.heat=88;pq("tip")}else if(!S.z.raided)raid();else end("raid")}
 function crime(h){
   S.heat=cl(S.heat+h);S.crime=1;S.crimes++;
@@ -114,7 +122,8 @@ function newDay(){
   if(pp("nia").rom>=2&&pp("nia").rom<4&&pp("june").rom>=2&&pp("june").rom<4&&r()<.25)pq("caught");
   if(S.chop&&S.heat>=60&&r()<.4)pq("inspect");
   if(S.day>(S.life||45)&&!S.free&&!S.fin){S.fin=1;pq("finale")}
-  streetDay();
+  streetDay();cloutDay();
+  pq("recap");
 }
 function dawn(){
   S.proms=S.proms.filter(pr=>{if(pr.due>=S.day)return 1;const a=ASK[pr.id];scar(a.who,10,4);bond(a.who,-5);rem(a.who,"You said you'd be there and you weren't");log(P[a.who].n+" waited on you. You never showed.");return 0});
@@ -176,10 +185,6 @@ function did(need){
   for(const m of S.inbox.concat(S.proms)){const a=ASK[m.id];if(a.need!==need)continue;const pr=S.proms.includes(m);
     S.inbox=S.inbox.filter(x=>x!==m);S.proms=S.proms.filter(x=>x!==m);
     bond(a.who,pr?8:6);trust(a.who,pr?7:4);rem(a.who,"You showed up when "+P[a.who].g+" asked");log("You came through for "+P[a.who].n+".");a.win&&a.win()}
-}
-function phone(){
-  const today=S.day-(S.h<5?1:0),ch=S.inbox.map(m=>{const a=ASK[m.id];return [(a.title||P[a.who].n)+": "+a.text.slice(0,34)+"…",()=>showAsk(m.id)]});
-  modal("Phone",(S.proms.length?"<b>You promised</b><ul>"+S.proms.map(pr=>`<li>${ASK[pr.id].what} · ${pr.due>today?"by tomorrow night":"by tonight"}</li>`).join("")+"</ul>":"")+(S.inbox.length?"Waiting on a reply:":S.proms.length?"":"No new texts. Nobody needs anything. Enjoy it."),ch.concat(phoneMore(),[["Put it away",0]]));
 }
 // hanging out
 function hang(k,free){
@@ -285,28 +290,23 @@ function A(){const a=[],add=(n,s,ok,fn,hot)=>a.push({n,s,ok,fn,hot}),at=S.at,H=S
       const free=st>=2&&S.ate!==S.day&&!lost,pr=lost?18:14;
       add(free?"Eat on the house":"Eat the special",(free?"Rosa insists":"$"+pr)+" · 1 hr",free||S.cash>=pr,()=>{if(free)S.ate=S.day;else S.cash-=pr;S.food=cl(S.food+60);S.mood=cl(S.mood+5);tick(1);log(free?"Rosa slides a plate over before you sit down. \"You look thin. Eat.\"":"Meatloaf, gravy, coffee that could strip paint.")});
       if(!lost)add("Work a shift on the line","6 hrs · ~$90",S.en>=30,()=>{const p=pay(90);S.cash+=p;S.en=cl(S.en-25);bond("rosa",3);trust("rosa",1);tick(6);meet("rosa");log("Six hours on the grill. "+$$(p)+" in your pocket and you smell like onions.");did("shift_diner")});
-      add("Sit at the counter with Rosa","1 hr",true,()=>hang("rosa"));
       if(prom("rosa_walkin"))add("Fix the walk-in cooler","2 hrs",true,()=>{tick(2);xp("wrench",2);meet("rosa");log("Bad start relay. Eleven dollars and two hours on a cold floor. It hums back to life.");did("fix_walkin")},1);
-      if((pp("rosa").b>=40||S.done.rosa_deadline)&&!S.q.rosa)add("Rosa needs to talk","in the office",true,rosaStory,1);
+      if((pp("rosa").b>=40||S.done.rosa_deadline)&&!S.q.rosa)add("Rosa needs to talk","in the office",true,rosaStory,2);
       if(st>=3&&pp("kow").met&&!S.kowGone&&S.heat>=20&&S.day-(S.vouch||-9)>=7)add("Ask Rosa to vouch for you","Heat −15",true,()=>{S.vouch=S.day;S.heat=cl(S.heat-15);bond("rosa",-2);log("Rosa pours Kowalski a refill and talks low for five minutes. He glances at you once. \"Don't make a liar out of me,\" she says after.")});
     }
-    if(S.h>=6&&S.h<10&&!S.kowGone)add("Sit next to Kowalski","1 hr",true,()=>hang("kow"));
   }
   if(at==="court"){
     add("Run pickup games","2 hrs",S.en>=25,()=>{S.en=cl(S.en-20);S.mood=cl(S.mood+15);S.rep=cl(S.rep+2);tick(2);const w=["marcus","june","nia","tommy"].filter(k=>pp(k).met&&stage(k)>=0);
       if(w.length&&r()<.35){const k=pick(w);bond(k,3);meet(k);log(P[k].n+" shows up"+(k==="tommy"?" to heckle from a lawn chair. It's the happiest you've seen him.":" and you run twos together. You two don't lose."))}
-      else log(r()<.5?"You hit the game winner over some guy's outstretched hand. He won't stop talking about it. Neither will you.":"You get cooked in the post. Still fun.")});
+      else if(r()<.5){clip("court",1,"Game winner at the court");log("You hit the game winner over some guy's outstretched hand. He won't stop talking about it. Neither will you.")}else log("You get cooked in the post. Still fun.")});
     add("Play one-on-one for money","$50 · 1 hr",S.cash>=50&&S.en>=15,()=>{S.en=cl(S.en-15);tick(1);if(r()<.45+S.rep/250){S.cash+=50;S.rep=cl(S.rep+1);log("Game point, step-back, cash. +$50.")}else{S.cash-=50;log("He banks in a prayer from the hash mark. There goes $50.")}});
   }
   if(at==="bar"){const N=pp("nia"),fd=stage("nia")>=2&&S.drank!==S.day;
     add("Have a drink",(fd?"first one's on Nia":"$12")+" · 1 hr",fd||S.cash>=12,()=>{if(fd)S.drank=S.day;else S.cash-=12;S.mood=cl(S.mood+15);S.en=cl(S.en-8);tick(1);log("Whiskey, neat, jukebox playing something older than you are.")});
-    add("Talk to Nia","1 hr",true,()=>hang("nia"));
     romActs("nia",add);
-    if(N.rom===2&&N.b>=60&&!S.q.nia&&S.day>=S.niaWait)add("Nia wants to talk","serious face",true,niaStory,1);
+    if(N.rom===2&&N.b>=60&&!S.q.nia&&S.day>=S.niaWait)add("Nia wants to talk","serious face",true,niaStory,2);
     if(stage("nia")>=2)add("Ask Nia what she's hearing","1 hr",true,niaGossip);
-    add(pp("dex").met?"Back booth: Dex":"Back booth: who's that guy?","1 hr",true,dex);
   }
-  if(at==="docks")add("Find Dex by the containers","1 hr",true,dex);
   if(at==="pawn"){const fs=stage("sal")>=2,owe=fs?1300:1400;
     add("Sell crates of \"merchandise\"",S.crates+" on you",S.crates>0,()=>{let t=0;for(let i=0;i<S.crates;i++)t+=260+r()*160;t*=1+.05*lvl("charm")+(fs?.1:0);if(S.heat>50)t*=.7;t=Math.round(t);S.cash+=t;meet("sal");bond("sal",1.5);log("Sal takes "+S.crates+" crate"+(S.crates>1?"s":"")+" for "+$$(t)+(S.heat>50?". He lowballs you. \"You're hot right now, friend.\"":fs?". \"Friend price.\"":". No questions."));S.crates=0;crime(4);tick(1)});
     if(!S.loan)add("Borrow $1,000 from Sal","owe "+$$(owe)+" in 5 days",stage("sal")>=0,()=>{S.cash+=1000;S.loan={amt:owe,due:S.day+5};meet("sal");bond("sal",1);rem("sal","Lent you $1,000");log("Sal counts out ten hundreds. \"Day "+(S.day+5)+". I like you, so I'm telling you now: I'm not a patient man.\"")});
@@ -314,12 +314,10 @@ function A(){const a=[],add=(n,s,ok,fn,hot)=>a.push({n,s,ok,fn,hot}),at=S.at,H=S
       add("Pay Sal back",$$(S.loan.amt)+" · due day "+S.loan.due,S.cash>=S.loan.amt,()=>{S.cash-=S.loan.amt;trust("sal",8);bond("sal",3);S.loan=null;rem("sal","Paid what you owed, on time");log("Sal counts it twice. \"See? Easy. Come back anytime.\"")});
       if(stage("sal")>=3&&!S.loan.ext)add("Ask Sal for another week","he likes you",true,()=>{S.loan.due+=7;S.loan.ext=1;trust("sal",-3);log("Sal sighs through his nose. \"One week. Because it's you. Don't make me regret having feelings.\"")});
     }
-    add("Shoot the breeze with Sal","1 hr",true,()=>hang("sal"));
-    if(S.q.rosa===5)add("Buy Rosa's note from Sal","$3,000",S.cash>=3000,()=>{S.cash-=3000;S.q.rosa=1;bond("rosa",25);trust("rosa",20);pp("rosa").mood="up";rem("rosa","Bought Lucky's back for her");gossip("rosa",12,"you bought Lucky's back from Sal");log("Sal slides the deed across. \"Sentimental. Expensive habit.\" Rosa gets her keys back and makes you a partner: $80 a day.")},1);
+    if(S.q.rosa===5)add("Buy Rosa's note from Sal","$3,000",S.cash>=3000,()=>{S.cash-=3000;S.q.rosa=1;bond("rosa",25);trust("rosa",20);pp("rosa").mood="up";rem("rosa","Bought Lucky's back for her");gossip("rosa",12,"you bought Lucky's back from Sal");log("Sal slides the deed across. \"Sentimental. Expensive habit.\" Rosa gets her keys back and makes you a partner: $80 a day.")},2);
   }
   if(at==="garage"){const T=pp("tommy"),ts=stage("tommy"),hired=S.gar||ts>=0&&(T.b>=20||pp("rosa").b>=30||S.rep>=15),base=(S.gar?170:130)+15*lvl("wrench"),gp=S.tsh>=8||T.b>=45&&T.t>=60?6500:8000,tc=lvl("wrench")||ts>=2?1200:1500;
     add(S.gar?"Work your own bay":hired?"Wrench a shift for Tommy":"Ask Tommy for work",hired?"6 hrs · ~"+$$(base):ts<0?"not after what you did":"he doesn't know you yet",hired&&S.en>=30,()=>{const p=pay(base);S.cash+=p;S.en=cl(S.en-25);S.rep=cl(S.rep+1);S.tsh++;xp("wrench");bond("tommy",3);trust("tommy",1);tick(6);meet("tommy");log(S.gar?"A supercharger rebuild and two wear rings. "+$$(p)+", and your name's on the invoices.":"Two impeller swaps and a seized jet pump. Tommy pays "+$$(p)+" cash and says \"not bad\" like it hurts him.");did("shift_garage")});
-    add("Talk shop with Tommy","1 hr",true,()=>hang("tommy"));
     if(prom("marcus_gasket"))add("Pull the supercharger on Marcus's ski","4 hrs",S.en>=25,()=>{S.en=cl(S.en-20);tick(4);xp("wrench",2);meet("marcus");log("Four hours, one snapped bolt, a lot of swearing. By the end Marcus is handing you tools before you ask.");did("help_marcus")},1);
     add("Work on your ski",ts<0&&!S.gar?"Tommy won't have you in his shop":"parts, setup, service · 1 hr",ts>=0||!!S.gar,()=>enterRace("garage"),1);
     if(!S.car)add("Buy Tommy's old truck","$1,200",S.cash>=1200,()=>{S.cash-=1200;S.car=1;log("A square-body pickup with a hitch and one working speaker. No more walking.")});
@@ -328,9 +326,8 @@ function A(){const a=[],add=(n,s,ok,fn,hot)=>a.push({n,s,ok,fn,hot}),at=S.at,H=S
   }
   if(at==="gym"){const J=pp("june"),js=stage("june"),fr=js>=2;
     add("Hit the bags",(fr?"free":"$10")+" · 2 hrs",(fr||S.cash>=10)&&S.en>=25&&js>=0,()=>{if(!fr)S.cash-=10;S.en=cl(S.en-22);S.mood=cl(S.mood+6);xp("fight",2);bond("june",2);tick(2);meet("june");log(pick(["June holds the bag and insults your footwork for two hours.","Jab, jab, cross. Your shoulders are on fire.","June: \"Hands up. You hit like you're apologizing.\""]));did("train")});
-    add("Catch up with June","1 hr",true,()=>hang("june"));
     romActs("june",add);
-    if(J.rom===2&&J.b>=60&&!S.q.june&&S.day>=(S.juneWait||0))add("June wants to talk","arms crossed",true,juneStory,1);
+    if(J.rom===2&&J.b>=60&&!S.q.june&&S.day>=(S.juneWait||0))add("June wants to talk","arms crossed",true,juneStory,2);
     if(js>=3&&S.day-(S.patch||-9)>=3)add("Get patched up","June's med kit",S.en<70,()=>{S.patch=S.day;S.en=cl(S.en+40);log("June tapes your ribs and ices your hand. \"You're not as tough as you think. Nobody is.\"")});
     add("Fight night",S.h>=21?"three rounds":"after 9pm",S.h>=21&&S.en>=35&&js>=0,fightNight,1);
   }
@@ -338,10 +335,10 @@ function A(){const a=[],add=(n,s,ok,fn,hot)=>a.push({n,s,ok,fn,hot}),at=S.at,H=S
     if(rd)add(I.mid?"Race moto 2 of round "+(I.round+1):"Race round "+(I.round+1)+" of "+I.total,"at "+I.next+(I.mid?" · 3 hrs":" · two motos · 6 hrs"),S.en>=30,()=>enterRace("tour"),1);
     else if(I.round<I.total)add("Next round: day "+motoDay(I.round),"at "+I.next,false,()=>{});
     add("Run the open race",S.openDay===S.day?"one a day":"$40 fuel · 4 hrs · small purse",S.openDay!==S.day&&S.en>=30&&S.cash>=40,()=>enterRace("open"));
-    add("Line up against Marcus",ms<0?"his crew won't let you near the strip":S.dragDay===S.day?"one run a day":"drag strip · 2 hrs",ms>=0&&S.dragDay!==S.day&&S.en>=15,dragMarcus);
-    add("Kick it with Marcus","1 hr",true,()=>hang("marcus"));
+    const mh=where("marcus")==="lake";
+    add("Line up against Marcus",ms<0?"his crew won't let you near the strip":S.dragDay===S.day?"one run a day":!mh?"he's not at the ramp right now":"drag strip · 2 hrs",ms>=0&&mh&&S.dragDay!==S.day&&S.en>=15,dragMarcus);
   }
-  moreActs(at,add);
+  moreActs(at,add);hustleActs(at,add);
   return a}
 function dex(){
   if(S.z.dexDead)return noDex();
@@ -385,7 +382,7 @@ function haul(c,h,p){
   else{S.q.dex=3;scar("dex",10,5);rem("dex","You got greedy at the warehouse");log("The truck's too heavy and too slow. Sirens. You dump the load on the highway and run.");crime(h);if(!S.over&&r()<.5)jail()}
 }
 function fightNight(){const J=pp("june");meet("june");
-  const f=b=>()=>{tick(2);S.en=cl(S.en-30);xp("fight",2);meet("june");if(r()<Math.min(.9,.3+.12*lvl("fight")+(stage("june")>=2?.08:0))){S.cash+=b;S.rep=cl(S.rep+5);bond("june",4);rem("june","Watched you win");log("Third round, he walks into your right hand. The basement goes nuts. +"+$$(b)+".")}else{S.cash=Math.max(0,S.cash-b);S.mood=cl(S.mood-8);rem("june","Watched you get dropped");log("You wake up looking at the ceiling lights. June's holding smelling salts. -"+$$(b)+".")}did("fight")};
+  const f=b=>()=>{tick(2);S.en=cl(S.en-30);xp("fight",2);meet("june");if(r()<Math.min(.9,.3+.12*lvl("fight")+(stage("june")>=2?.08:0))){S.cash+=b;S.rep=cl(S.rep+5);bond("june",4);rem("june","Watched you win");clip("fight",3,"Third-round knockout in the Iron Den basement");log("Third round, he walks into your right hand. The basement goes nuts. +"+$$(b)+".")}else{S.cash=Math.max(0,S.cash-b);S.mood=cl(S.mood-8);rem("june","Watched you get dropped");log("You wake up looking at the ceiling lights. June's holding smelling salts. -"+$$(b)+".")}did("fight")};
   modal("Fight night","Basement of the Iron Den. Folding chairs, cigar smoke, cash in a bucket. June: \"Bet on yourself or go home.\" Your Fighting is level "+lvl("fight")+(stage("june")>=2?", and June's working your corner.":"."),[["Bet $100 on yourself",f(100),S.cash<100],["Bet $300 on yourself",f(300),S.cash<300],
    [S.rep>=10?"Take a dive for $350":"Take a dive (nobody pays a nobody to lose)",()=>{tick(2);S.en=cl(S.en-20);S.cash+=350;S.rep=cl(S.rep-8);S.dove=1;scar("june",20,10);rem("june","Knows you took a dive");gossip("june",-4,"you took a dive at the Iron Den");
      if(S.q.june===1){S.q.june=2;J.rom=4;bond("june",-25);log("You go down in the second. June watches from the corner you promised to be in. She's gone before you get up.")}
@@ -413,7 +410,7 @@ function enterRace(kind,o){
     if(pp("tommy").met&&stage("tommy")>=3){HS.fresh();log("Tommy went through your ski last night. Fresh plugs, fresh wear ring, no charge.")}
     if(S.hot&&r()<.25*S.hot){S.hot=0;S.cash=Math.max(0,S.cash-500);S.rep=cl(S.rep-5);log("Tech inspection finds a serial number that isn't yours. $500 fine, and everybody in the pits watched.");crime(8);if(S.over)return}
   }
-  S.race=Object.assign({kind,day:S.day},o||{});save();
+  S.race=Object.assign({kind,day:S.day},o||{});PRE=snap();save();
   HS.open({mode:kind,level:S.race.level||0,disc:S.gar?.75:pp("tommy").met&&stage("tommy")>=2?.85:1,svc:Math.max(.5,1-.1*lvl("wrench")),purse:kind==="tour"?1:kind==="open"?.3:0,
     turn:1+.008*lvl("drive"),top:S.en<40?.98:1,done:raceDone,exit:cityBack});
   host.hidden=true;
@@ -441,12 +438,15 @@ function raceDone(res){
   }
   for(const l of L)log(l);
   did("race");
+  if(tour&&!res.dnf)S.lastP=res.p;
+  if(!res.dnf)clip("race",res.p===1?5:res.p<=3?4:res.p<=5?3:res.p<=8?2:1,(tour?"Round "+res.round+" at "+res.site:"Open race at "+res.site)+": "+ord(res.p));
+  else if(r()<.4)clip("crash",3,"The wipeout at "+res.site);
   modal(tour?"Round "+res.round+" of "+res.total:res.dnf?"Did not finish":"Open race",L.join(" "),[["OK",0]]);
 }
 function dragDone(R,res){
   const L=[];S.dragDay=S.day;tick(2);if(S.over)return;
   S.en=cl(S.en-15);xp("drive",1);meet("marcus");
-  if(res.win){S.mwins++;S.rep=cl(S.rep+3);S.mood=cl(S.mood+8);if(pal())bond("marcus",1);else{S.salt++;bond("marcus",-2)}L.push("You beat Marcus down the strip.")}
+  if(res.win){S.mwins++;S.rep=cl(S.rep+3);S.mood=cl(S.mood+8);clip("drag",R.pinks?5:3,R.pinks?"Won Marcus's ski on a pink slip":"Beat Marcus down the strip");if(pal())bond("marcus",1);else{S.salt++;bond("marcus",-2)}L.push("You beat Marcus down the strip.")}
   else{bond("marcus",2);S.mood=cl(S.mood-4);L.push(res.dnf?"You pulled out of the run. Marcus calls that a win.":res.red?"You left before the green. Red light. Marcus takes it.":"Marcus beat you down the strip.")}
   if(R.bet){
     if(res.win){S.cash+=R.bet;rem("marcus","Lost "+$$(R.bet)+" to you on the strip");L.push("He pays out "+$$(R.bet)+" without a word.")}
@@ -463,10 +463,11 @@ function dragDone(R,res){
       modal("Pink slips","Marcus gets you at the line. His crew has your ski on a stand before you're out of your vest. Every part you bought leaves in his truck. Tommy lends you the bare hull back.",[["Damn",0]])}
   }
 }
+let PRE=null;
 function cityBack(){
-  window.CITYON=true;host.hidden=false;tab("city");
+  window.CITYON=true;host.hidden=false;tab("here");
   if(S.race){if(S.race.kind==="garage"){tick(1);meet("tommy");log("An hour on the stand at Tommy's with your ski.")}S.race=null}
-  render();host.scrollTop=0;
+  render();host.scrollTop=0;if(PRE){toast(deltas(PRE,snap()));PRE=null}
 }
 function copRoll(m){
   if(S.over)return;const K=pp("kow"),gone=S.kowGone,night=S.h>=20||S.h<5,p=Math.min(.45,S.heat/220*(night?1.3:1)*m*(gone?1.1:1-K.t/300));
@@ -484,7 +485,7 @@ function copRoll(m){
 function jail(){
   if(S.over)return;
   if(S.kowOwes&&!S.kowGone){S.kowOwes=0;S.heat=cl(S.heat-20);S.crates=0;return modal("Kowalski","He walks you to the cruiser, opens the back door, then closes it again. \"IA asked about me. You said nothing. This is me saying nothing.\" He gets in alone. \"That's us even.\"",[["Breathe",0]])}
-  const t=take(.3);S.crates=0;S.heat=cl(S.heat-40,10);streetJail();
+  const t=take(.3);S.crates=0;S.heat=cl(S.heat-40,10);streetJail();arrested();
   for(const k of STRAIGHT)if(pp(k).met&&!(k==="nia"&&S.q.nia===2)){trust(k,pp(k).rom>=2?-12:-6);rem(k,"You did three days in county")}
   if(S.bag){S.bag=0;scar("dex",20,8);rem("dex","Cops took his bag out of your place")}
   for(let i=0;i<3&&!S.over;i++){S.day++;newDay()}if(S.over)return;dawn();S.h=9;S.at="home";
@@ -558,60 +559,46 @@ function epi(){const q=S.q,N=pp("nia"),J=pp("june"),fr=friends(),bn=Object.keys(
 const ENDS={evicted:["Evicted","Two missed rents and nobody close enough to call. Your stuff's on the curb in contractor bags. A guy is already carrying off your TV."],
  raid:["Locked up","6 a.m. They kick in the door. Turns out the city remembered everything. Dex's name never comes up. Yours does, a lot."]};
 function end(k){S.over=k;save();modal(ENDS[k][0],ENDS[k][1]+epi(),[["Start a new life",reset]],1)}
+//@art
+//@ui
+//@hustle
 //@street
 //@talk
 function go(k){
-  if(k===S.at||S.over||open())return;S.at=k;tick(S.car?0:1);log((S.car?"You drive to ":"You walk to ")+L[k].n+".");
+  if(k===S.at){tab("here");return}
+  if(S.over||open())return;const from=S.at,onMap=$("app").dataset.tab==="map";
+  S.at=k;tick(S.car?0:1);log((S.car?"You drive to ":"You walk to ")+L[k].n+".");
   const now=S.day*24+S.h;
   if(!S.over&&now-S.lastEv>=6&&r()<.3){S.lastEv=now;pick(STREET)()}
   else if(S.h>=20||S.h<5)copRoll(.5);
-  render();
+  TRAVEL={from,to:k};render();
+  if(onMap)setTimeout(()=>{if($("app").dataset.tab==="map")tab("here")},900);else tab("here");
 }
 function render(){
   while(!open()&&!S.over&&S.pend.length){const [k,a]=S.pend.shift().split(":");EV[k]&&EV[k](a)}
-  save();
-  $("clock").textContent="Day "+S.day+" · "+fmtH(S.h);$("cash").textContent=$$(S.cash);
-  const st=Math.ceil(S.heat/20);$("stars").textContent="★".repeat(st)+"☆".repeat(5-st);
-  const I=HS.info(),rdToday=I.round<I.total&&S.day===motoDay(I.round);
-  let nr=S.day+1;while(!rentDay(nr))nr++;$("rent").textContent=(rdToday?"Race day · ":"")+(rentAmt()?"Rent "+$$(rentAmt())+" due day "+nr+(S.missed?" · 1 missed":""):"No rent: the house is yours");
-  const nt=S.inbox.length+S.proms.length;$("phone").textContent="Phone"+(nt?" · "+nt:"");$("phone").className="ph"+(S.inbox.length?" new":"");
-  $("meters").innerHTML=[["Energy",S.en,"#7ff0b8"],["Food",S.food,"#ffd166"],["Mood",S.mood,"#8ecbff"],["Rep",S.rep,"#ffffff"],["Heat",S.heat,"#ff3d7f"]].map(([n,v,c])=>`<div class="m"><span>${n}<b style="font:inherit">${Math.round(v)}</b></span><div class="bar"><i style="width:${v}%;background:${c}"></i></div></div>`).join("");
-  const night=S.h>=20||S.h<6;
-  const roads=`<rect x="0" y="100" width="400" height="16" fill="var(--road)"/><rect x="0" y="208" width="400" height="16" fill="var(--road)"/><rect x="128" y="0" width="16" height="300" fill="var(--road)"/><rect x="258" y="0" width="16" height="300" fill="var(--road)"/>`+[108,216].map(y=>`<line x1="0" y1="${y}" x2="400" y2="${y}" stroke="#ffd166" stroke-dasharray="8 8" stroke-width="1.5" opacity=".6"/>`).join("");
-  const locs=Object.entries(L).map(([k,l])=>{const op=isOpen(l.o,S.h),all=l.o[1]-l.o[0]===24;return `<g class="loc" tabindex="0" role="button" aria-label="Go to ${l.n}" data-go="${k}" opacity="${op?1:.5}"><rect x="${l.x-56}" y="${l.y-30}" width="112" height="60" rx="8" fill="${l.c}" stroke="${k===S.at?"#fff":"#0005"}" stroke-width="${k===S.at?3:1}"/><rect x="${l.x-56}" y="${l.y+18}" width="112" height="12" fill="#0003"/><text x="${l.x}" y="${l.y+2}" text-anchor="middle">${l.s||l.n}</text><text class="hrs" x="${l.x}" y="${l.y+27}" text-anchor="middle">${k==="lake"&&rdToday&&op?"race day · until 8pm":all?"always open":(op?"open":"closed")+" · "+fmtH(l.o[0])+"–"+fmtH(l.o[1])}</text></g>`}).join("");
-  const p=L[S.at];
-  $("map").innerHTML=roads+`<rect width="400" height="300" fill="#070b24" opacity="${night?.38:0}" pointer-events="none"/>`+locs+`<g id="me" style="transform:translate(${p.x+44}px,${p.y-22}px)"><circle r="11" fill="#ff3d7f" stroke="#fff" stroke-width="3"/><circle r="4" fill="#fff"/></g>`;
-  const op=isOpen(p.o,S.h),acts=op?A():[],w=WHO[S.at],ml=op&&w&&!gone(w)&&stage(w)>=0?P[w].mood[pp(w).mood]:"";
-  $("here").innerHTML=(S.log.length?`<p class="last"><time>${S.log[0].t}</time>${S.log[0].x}</p>`:"")+`<h2>${p.n}</h2><p class="desc">${S.at==="garage"&&S.gar?"Yours now. Tommy still shows up at eight out of habit. Parts are at cost.":S.at==="diner"&&S.q.rosa===5?"Sal's nephew is on the grill. The coffee got worse.":S.at==="home"&&S.z.pad?PAD[S.z.pad][3]:p.d}</p>${ml?`<p class="desc mood">${ml}</p>`:""}<div class="acts">${op?acts.map((a,i)=>`<button data-a="${i}"${a.ok?"":" disabled"}${a.hot?' class="hot"':""}>${a.n}<small>${a.s}</small></button>`).join(""):`<p>Closed right now. Opens at ${fmtH(p.o[0])}. Tap somewhere else on the map, or head home and sleep.</p>`}</div>${S.crates?`<p class="note">On you: ${S.crates} crate${S.crates>1?"s":""} of hot merchandise. Cops will care.</p>`:""}`;
-  render.acts=acts;
-  const own=Object.keys(UP).filter(k=>S.home[k]).map(k=>({bed:"bed",fridge:"fridge",tv:"TV",safe:"safe"})[k]),inc=income(),today=S.day-(S.h<5?1:0);
-  $("you").innerHTML=S.proms.map(pr=>`<div class="row"><span>Promised</span><b>${ASK[pr.id].what} · ${pr.due>today?"tomorrow":"today"}</b></div>`).join("")
-   +Object.entries(SK).map(([k,n])=>`<div class="row"><span>${n}</span><b class="pips" aria-label="level ${lvl(k)} of 5">${"●".repeat(lvl(k))+"○".repeat(5-lvl(k))}</b></div>`).join("")
-   +`<div class="row"><span>Ride</span><b>${S.car?"Old pickup":"On foot"}</b></div>`
-   +`<div class="row"><span>Ski</span><b>${I.craft} · ${I.cls} · ${I.parts} part level${I.parts===1?"":"s"}${I.wear<60?" · needs service":""}</b></div>`
-   +`<div class="row"><span>Series</span><b>${I.round>=I.total?"Finished "+ord(S.tourPos||I.pos):(I.round?ord(I.pos)+" on "+I.pts+" pts · ":"")+(I.mid?"moto 2 of ":"")+"round "+(I.round+1)+" on day "+motoDay(I.round)}</b></div>`
-   +`<div class="row"><span>Place</span><b>${S.z.pad?PAD[S.z.pad][0]:own.length?"Studio with "+own.join(", "):"Mattress on the floor"}${S.q.nia===3?", and Nia":""}${S.bag?", and Dex's bag":""}</b></div>`
-   +(inc?`<div class="row"><span>Daily take</span><b>${$$(inc)}${S.chop?" · chop shop running":""}</b></div>`:"")
-   +(S.loan?`<div class="row"><span>Owed to Sal</span><b>${$$(S.loan.amt)} by day ${S.loan.due}</b></div>`:"")
-   +(S.oweDay?`<div class="row"><span>Nia owes you</span><b>$200</b></div>`:"")+moreYou();
-  const ar=(a,b)=>a-b>=1?" ▲":b-a>=1?" ▼":"";
-  $("people").innerHTML=Object.keys(P).map(k=>{const q=pp(k),c=P[k];
-    if(k==="kow"&&S.kowGone)return `<div class="p"><b>Kowalski<span>transferred out</span></b></div>`;
-    if(k==="dex"&&S.z.dexDead)return `<div class="p"><b>Dex<span>dead · pulled out of the harbor off Pier 4</span></b></div>`;
-    if(!q.met)return `<div class="p"><b>${c.n}<span>${c.role} · hasn't met you</span></b></div>`;
-    const sg=stage(k),away=S.day-q.seen,lab=q.rom?ROM[q.rom]+(sg<0?" · done with you":""):STG[sg];
-    return `<details class="p" data-p="${k}"${S.openP===k?" open":""}><summary><b>${c.n}<span>${lab}</span></b><div class="bars"><div><i style="width:${q.b}%"></i></div><div class="tr"><i style="width:${q.t}%"></i></div></div><small>Bond ${Math.round(q.b)}${ar(q.b,q.b0)} · Trust ${Math.round(q.t)}${ar(q.t,q.t0)}${q.cap<100?" (max "+q.cap+")":""}${away>=3?" · not seen in "+away+" days":""}</small></summary><ul><li>${c.role[0].toUpperCase()+c.role.slice(1)}. ${tieTxt(k)}</li>${c.know.slice(0,q.know).map(x=>`<li><b>You know:</b> ${x}</li>`).join("")}${q.mem.map(x=>`<li><b>Remembers:</b> ${x}</li>`).join("")}</ul></details>`}).join("");
-  $("log").innerHTML=S.log.map(l=>`<p><time>${l.t}</time>${l.x}</p>`).join("");
+  save();if(!S.d0)S.d0=snap();
+  XA=[];hud();hereView();mapView();hustleView();peopleView();youView();phoneView();
 }
+// Every tap that does something is wrapped in a snapshot, so what it changed can pop up (toast, ui.js).
+const did1=fn=>{const a=snap();fn();render();toast(deltas(a,snap()))};
 root.addEventListener("click",e=>{
   const t=e.target;
+  if(!AC)try{AC=new(window.AudioContext||window.webkitAudioContext)()}catch(err){}
   const c=t.closest("[data-ch]");
-  if(c){$("modal").classList.remove("show");const f=modal.ch[+c.dataset.ch][1];f&&f();if(!open()&&MQ.length&&!S.over)draw(...MQ.shift());return render()}
+  if(c){$("modal").classList.remove("show");const f=modal.ch[+c.dataset.ch][1];return did1(()=>{f&&f();if(!open()&&MQ.length&&!S.over)draw(...MQ.shift())})}
   if(open())return;
   const tb=t.closest("#tabs [data-tab]");if(tb)return tab(tb.dataset.tab);
-  if(t.closest("#phone"))return phone();
-  const g=t.closest("[data-go]");if(g)return go(g.dataset.go);
-  const a=t.closest("[data-a]");if(a&&!S.over){render.acts[+a.dataset.a].fn();return render()}
+  if(t.closest("#phone")){phone();return render()}
+  if(t.closest("[data-pclose]")||t===$("phoneui")){PH.open=0;return render()}
+  if(t.closest("[data-pback]")){PH.app=null;return render()}
+  const ap=t.closest("[data-app]");if(ap){const id=ap.dataset.app;if(id==="map"){PH.open=0;tab("map")}else{PH.open=1;PH.app=id}return render()}
+  const as=t.closest("[data-ask]");if(as)return did1(()=>showAsk(as.dataset.ask));
+  const g=t.closest("[data-go]");if(g){PH.open=0;return did1(()=>go(g.dataset.go))}
+  if(S.over)return;
+  const w=t.closest("[data-who]");if(w)return did1(()=>talkTo(w.dataset.who));
+  const a=t.closest("[data-a]");if(a)return did1(()=>render.acts[+a.dataset.a].fn());
+  const x=t.closest("[data-x]");if(x)return did1(()=>XA[+x.dataset.x]());
+  if(t.closest("#snd")){try{localStorage.setItem("shc.snd",sndOn()?"0":"1")}catch(err){}return render()}
   if(t.closest("#reset")){reset();render()}
   if(t.closest("#free"))CITY.leave();
 });
@@ -627,13 +614,11 @@ function gate(){
   if(open()&&modal.cur&&modal.cur[0]!=="Adults only")MQ.unshift(modal.cur);
   draw("Adults only","Side Hustle City is a crime story for adults: violence, drugs, strong language, and sex that cuts away. The racing on its own is for everybody.",[["I'm 18 or older",()=>{try{localStorage.setItem("shc.adult","1")}catch(e){}}],["Just the racing",()=>CITY.leave()]]);
 }
-// on a phone the foot of the screen switches between the city, the people, you and the log
-function tab(k){$("wrap").dataset.tab=k;for(const b of root.querySelectorAll("#tabs [data-tab]"))b.setAttribute("aria-pressed",String(b.dataset.tab===k));host.scrollTop=0}
 HS.city(true);host.hidden=false;if(!adult())gate();
-{const I=HS.info();$("tag").textContent="$200, a studio apartment, a bare ski and "+I.total+" race weekends. One season to get fast, get paid, or get locked up. Adults only: crime, violence, drugs, strong language."}
+for(const i of root.querySelectorAll("#tabs [data-i]"))i.outerHTML=ico(i.dataset.i);$("phico").outerHTML=ico("phone");
 const first=!S.log.length;if(first)log("Day 1. $200, a studio apartment and a bare ski. Rent's due on day 8. The first race weekend is day 5.");
 render();
-if(first)modal("Day 1","New city, $200, a bare ski, rent due on day 8. Tap the map to get around.<ul><li>There is a race weekend every five days, starting day 5: two motos, at the Lake. Pick your rider and ski in the pits before the first one. The ski gets built at Tommy's Garage, out of the same money you live on.</li><li>Everybody here has good days and bad days. Read the room before you crack a joke.</li><li>Bond is how close you are. Trust is whether they believe you. They move separately, and people talk to each other.</li><li>Your phone will buzz. Saying yes is a promise.</li><li>Not everything here is legal. Heat is how hard the law is looking: the more stars, the more of them come after you, on the street and on the water.</li><li>In a conversation you can pick what to say, or say it in your own words.</li></ul>",[["Let's go",0]]);
+if(first)modal("Day 1","New city, $200, a bare ski, and rent due on day 8.<ul><li><b>Here</b> is where you are and what you can do. Tap a face to talk. <b>Map</b> gets you around. <b>Hustles</b> is every way to make money. <b>People</b> are the eight who'll remember what you do.</li><li>A race weekend every five days, starting day 5, at the Lake. Your ski gets built at Tommy's Garage out of the same money you live on.</li><li>Bond is how close you are. Trust is whether they believe you. They move separately, and people talk.</li><li>Your phone buzzes. Saying yes is a promise.</li><li>Not everything here is legal. Heat brings the law, on the street and on the water.</li></ul>",[["Let's go",0]]);
 if(S.over)end(S.over);
 
 })();

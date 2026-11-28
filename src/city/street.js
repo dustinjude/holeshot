@@ -59,6 +59,7 @@ function getaway(site){
     const clean=res.how==="lost";S.rep=cl(S.rep+(clean?6:3));
     if(!S.kowGone){trust("kow",-8);rem("kow","You outran the Harbor Patrol")}
     if(clean){S.heat=cl(S.heat-8);S.z.seen=0}else crime(8);
+    clip("chase",5,clean?"Lost Harbor Patrol up the river":"Outran Harbor Patrol to the slip",12);
     news("A jet ski outran Harbor Patrol "+(site==="havasu"?"across the lake":"up the river")+" last night. Police are asking for video.");
     modal(clean?"Clean away":"Got away",clean?"You kill the engine under the rail bridge and drift. Sirens go past, then further past, then nothing. You sit in the dark laughing like an idiot.":"You run it up the slip with the lights still behind you and you're over the fence before they tie off. They didn't get you. They got a good look at the ski.",[["Breathe",0]]);
   }});
@@ -291,7 +292,7 @@ Object.assign(EV,{
    ["\"I ride for Dex.\"",()=>{S.z.v=3;bond("dex",8);trust("dex",8);rem("dex","Vance came for you and you said no");log("No reply. Dex hears about it by lunch and buys you a coffee, which for Dex is a parade.")}],
    ["Show Dex the text",()=>{S.z.v=3;S.cash+=200;bond("dex",10);trust("dex",12);rem("dex","Showed him Vance's text");log("Dex reads it twice and hands your phone back with $200 under it. \"Now I know he's hiring. That's worth something.\"")},pp("dex").t<20],
    ["Leave him on read",()=>{S.z.v=3;log("You don't answer. The typing dots appear once, and stop.")}]])},
- v3(){if(S.z.v!==2||S.z.dexDead)return;modal("Pier 4","The cold storage is exactly as cold as it sounds. Vance is smaller than you pictured, in a good coat, eating an orange. \"You're careful. I like careful. Dex isn't careful. Dex is a habit this city has.\" He offers you a segment. \"Tuesday night. Tell him you've got a buyer who'll only meet on the pier. Ten thousand, and what he was doing becomes what you're doing.\"",[
+ v3(){if(S.z.v!==2||S.z.dexDead)return;modal("Vance","The cold storage is exactly as cold as it sounds. Vance is smaller than you pictured, in a good coat, eating an orange. \"You're careful. I like careful. Dex isn't careful. Dex is a habit this city has.\" He offers you a segment. \"Tuesday night. Tell him you've got a buyer who'll only meet on the pier. Ten thousand, and what he was doing becomes what you're doing.\"",[
    ["Walk Dex onto the pier",()=>{
      const z=S.z;z.v=6;z.dexDead=1;S.cash+=10000;S.rep=cl(S.rep+12);S.mood=cl(S.mood-25);S.bag=0;S.revenge=0;
      if(!S.kowGone){scar("kow",25,15);rem("kow","His best source walked onto Pier 4 with you and didn't walk off")}
@@ -388,8 +389,8 @@ function moreActs(at,add){
   if(at==="docks"){
     if(!z.dexDead&&D.met&&D.b>=30&&S.pk>=1&&stage("dex")>=0)add("Night run for Dex",z.nightDay===S.day?"one a night":night?"a load off the boat · you ride it":"after 8pm",night&&z.nightDay!==S.day&&S.en>=20,()=>nightRun("dex"),1);
     if(z.v===2||z.v===6)add("Run a load for Vance",z.vanceDay===S.day?"one a night":night?"$1,800 · you ride it":"after 8pm",night&&z.vanceDay!==S.day&&S.en>=20,()=>nightRun("vance"),1);
-    if(!z.big&&S.rep>=30&&S.day>=18&&(stage("sal")>=2||S.q.dex===2||z.v===6||z.v===9))add("The Second Wind","the big one · a casino boat, three miles out",S.cash>=500&&S.en>=30,bigScore,1);
-    if(z.v===4)add("Pier 4",S.day>=z.hitDay?"end it with Vance":"they're watching for you · day "+z.hitDay,S.day>=z.hitDay,pier4,1);
+    if(!z.big&&S.rep>=30&&S.day>=18&&(stage("sal")>=2||S.q.dex===2||z.v===6||z.v===9))add("The Second Wind","the big one · a casino boat, three miles out",S.cash>=500&&S.en>=30,bigScore,2);
+    if(z.v===4)add("Pier 4",S.day>=z.hitDay?"end it with Vance":"they're watching for you · day "+z.hitDay,S.day>=z.hitDay,pier4,2);
   }
   if(at==="pawn"){const ss=stage("sal");
     if(!z.piece)add("Buy a piece from Sal",ss>=1?"$600 · no serial number":"he doesn't sell those to strangers",ss>=1&&S.cash>=600,()=>{S.cash-=600;z.piece=1;trust("sal",2);log("Sal sets a snub-nose on a velvet ring tray like it's an engagement. \"I never sold you this. Don't make me read about it.\"");crime(3)});
