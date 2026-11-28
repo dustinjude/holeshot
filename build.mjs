@@ -34,7 +34,7 @@ new Function(game);   // parses only: a syntax error stops the build here instea
 // Side Hustle City is a script of its own, so its names stay out of the game's scope. Its styles and markup go into a
 // <template> in the page, which the script copies into a shadow root.
 let city = trim(read(src('city/city.js'))) + '\n';
-for (const k of ['art', 'ui', 'hustle', 'life', 'street', 'talk']) {
+for (const k of ['art', 'photo', 'ui', 'hustle', 'life', 'street', 'talk']) {
   const mark = '//@' + k;
   if (city.split(mark).length !== 2) throw new Error(`src/city/city.js needs exactly one "${mark}" line`);
   city = city.replace(mark, () => trim(read(src(`city/${k}.js`))));

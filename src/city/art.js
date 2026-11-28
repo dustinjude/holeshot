@@ -1,6 +1,7 @@
 // ---------- art ----------
 // Joined into city.js at //@art. Everything the city draws is built here from code: small icons, a face for each person, a
 // scene for each place, and the map. All of it is SVG text; nothing is loaded. The people are original designs.
+// Where a photograph of a person or a place exists (photo.js), it is shown instead and the drawing here is the fallback.
 
 // A colour a little darker (a<0) or lighter (a>0) than hex.
 function shade(hex,a){
@@ -70,6 +71,9 @@ const FACE={
  crew:{sk:"#a8714d",hr:"fade",hc:"#120f0f",fh:"goatee",top:"hoodie",tc:"#2a2a30",bg:"#3a1f24"},
  you:{sk:"#c9a07e",hr:"fade",hc:"#2a211c",top:"tee",tc:"#ff3d7f",bg:"#2b2d31"}};
 function face(k,m,size,cls){
+  // a photograph if there is one; one that has still to load fades in over the drawing
+  const ph=photoFace(k,m||"flat",size);
+  if(ph&&!ART.fresh)return `<span class="fc pic${cls?" "+cls:""}" style="width:${size}px;height:${size}px">${ph}</span>`;
   const f=FACE[k]||FACE.you,s=f.sk,sd=shade(s,-.16),dk=shade(s,-.34),h=f.hc,hd=shade(h,-.25),hw=f.hw||18,hh=f.hh||22,
    lip=shade(s,-.42),o=[];
   o.push(`<rect width="100" height="100" fill="${f.bg}"/><circle cx="50" cy="40" r="34" fill="#fff" opacity=".07"/>`);
@@ -142,7 +146,7 @@ function face(k,m,size,cls){
   if(f.gl)o.push(`<g stroke="#26262a" stroke-width="1.4" fill="#ffffff22"><rect x="36.5" y="46" width="11" height="6.5" rx="2.4"/><rect x="52.5" y="46" width="11" height="6.5" rx="2.4"/></g><path d="M47.5 48.4q2.5-1.6 5 0" stroke="#26262a" stroke-width="1.3" fill="none"/>`);
   if(f.ear==="hoop")o.push(`<g stroke="#e6b83c" stroke-width="1.6" fill="none"><circle cx="${50-hw-1}" cy="56" r="3.2"/><circle cx="${50+hw+1}" cy="56" r="3.2"/></g>`);
   if(f.ear==="stud")o.push(`<g fill="#e6b83c"><circle cx="${50-hw-1}" cy="52" r="1.3"/><circle cx="${50+hw+1}" cy="52" r="1.3"/></g>`);
-  return `<span class="fc${cls?" "+cls:""}" style="width:${size}px;height:${size}px"><svg viewBox="9 7 82 82" width="${size}" height="${size}" aria-hidden="true">${o.join("")}</svg></span>`;
+  return `<span class="fc${ph?" pic":""}${cls?" "+cls:""}" style="width:${size}px;height:${size}px"><svg viewBox="9 7 82 82" width="${size}" height="${size}" aria-hidden="true">${o.join("")}</svg>${ph}</span>`;
 }
 
 // ---- scenes: one picture for each place, lit for the hour ----

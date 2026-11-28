@@ -72,7 +72,7 @@ let MQ=[],RT=0;
 // the eight, where you stand with them. Texts look like texts.
 function draw(t,x,ch){
   modal.cur=[t,x,ch];const k=whoOf(t),q=k&&P[k]?pp(k):null;
-  const head=k?`<div class="who">${face(k,q?moodOf(k):"flat",64)}<div><h3>${t}</h3>${q&&q.met?`<small>${q.rom?ROM[q.rom]:STG[stage(k)]}</small><div class="bars"><div><i style="width:${q.b}%"></i></div><div class="tr"><i style="width:${q.t}%"></i></div></div>`:q?`<small>${P[k].role}</small>`:""}</div></div>`:`<h3>${t}</h3>`;
+  const head=k?`<div class="who">${face(k,q?moodOf(k):"flat",artUse()?88:64)}<div><h3>${t}</h3>${q&&q.met?`<small>${q.rom?ROM[q.rom]:STG[stage(k)]}</small><div class="bars"><div><i style="width:${q.b}%"></i></div><div class="tr"><i style="width:${q.t}%"></i></div></div>`:q?`<small>${P[k].role}</small>`:""}</div></div>`:`<h3>${t}</h3>`;
   $("sheet").className="sheet"+(/^Text from |^Unknown number$/.test(t)?" text":"");
   $("sheet").innerHTML=`${head}<div class="body">${x}</div><div class="acts">${ch.map((c,i)=>`<button data-ch="${i}"${c[2]?" disabled":""}>${c[0]}</button>`).join("")}</div>`;
   modal.ch=ch;$("modal").classList.add("show");$("sheet").scrollTop=0}
@@ -560,6 +560,7 @@ const ENDS={evicted:["Evicted","Two missed rents and nobody close enough to call
  raid:["Locked up","6 a.m. They kick in the door. Turns out the city remembered everything. Dex's name never comes up. Yours does, a lot."]};
 function end(k){S.over=k;save();modal(ENDS[k][0],ENDS[k][1]+epi(),[["Start a new life",reset]],1)}
 //@art
+//@photo
 //@ui
 //@hustle
 //@life
@@ -578,7 +579,10 @@ function go(k){
 function render(){
   while(!open()&&!S.over&&S.pend.length){const [k,a]=S.pend.shift().split(":");EV[k]&&EV[k](a)}
   save();if(!S.d0)S.d0=snap();
-  XA=[];GL=goals();hud();hereView();mapView();hustleView();peopleView();youView();phoneView();
+  XA=[];artFrame();GL=goals();hud();
+  // ART.pane tells photo.js which panel is being drawn, so pictures on the panel in view are asked for first
+  for(const [k,f] of [["here",hereView],["map",mapView],["hustle",hustleView],["people",peopleView],["you",youView],["phone",phoneView]]){ART.pane=k;f()}
+  ART.pane=null;
 }
 // Every tap that does something is wrapped in a snapshot, so what it changed can pop up (toast, ui.js).
 const did1=fn=>{const a=snap();fn();render();toast(deltas(a,snap()))};
@@ -619,7 +623,7 @@ function gate(){
 HS.city(true);host.hidden=false;if(!adult())gate();
 for(const i of root.querySelectorAll("#tabs [data-i]"))i.outerHTML=ico(i.dataset.i);$("phico").outerHTML=ico("phone");
 const first=!S.log.length;if(first)log("Day 1. $200, a studio apartment and a bare ski. Rent's due on day 8. The first race weekend is day 5.");
-render();
+artLoad();render();
 if(!first&&!S.asp&&!S.over)aimPick();
 if(first)modal("Day 1","New city, $200, a bare ski, and rent due on day 8.<ul><li><b>Here</b> is where you are and what you can do. Tap a face to talk. <b>Map</b> gets you around. <b>Hustles</b> is every way to make money. <b>People</b> are the eight who'll remember what you do.</li><li>A race weekend every five days, starting day 5, at the Lake. Your ski gets built at Tommy's Garage out of the same money you live on.</li><li>Bond is how close you are. Trust is whether they believe you. They move separately, and people talk.</li><li>Your phone buzzes. Saying yes is a promise.</li><li>Not everything here is legal. Heat brings the law, on the street and on the water.</li></ul>",[["Let's go",0]]);
 if(first)aimPick();

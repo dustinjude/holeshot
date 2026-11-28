@@ -72,7 +72,7 @@ let MQ=[],RT=0;
 // the eight, where you stand with them. Texts look like texts.
 function draw(t,x,ch){
   modal.cur=[t,x,ch];const k=whoOf(t),q=k&&P[k]?pp(k):null;
-  const head=k?`<div class="who">${face(k,q?moodOf(k):"flat",64)}<div><h3>${t}</h3>${q&&q.met?`<small>${q.rom?ROM[q.rom]:STG[stage(k)]}</small><div class="bars"><div><i style="width:${q.b}%"></i></div><div class="tr"><i style="width:${q.t}%"></i></div></div>`:q?`<small>${P[k].role}</small>`:""}</div></div>`:`<h3>${t}</h3>`;
+  const head=k?`<div class="who">${face(k,q?moodOf(k):"flat",artUse()?88:64)}<div><h3>${t}</h3>${q&&q.met?`<small>${q.rom?ROM[q.rom]:STG[stage(k)]}</small><div class="bars"><div><i style="width:${q.b}%"></i></div><div class="tr"><i style="width:${q.t}%"></i></div></div>`:q?`<small>${P[k].role}</small>`:""}</div></div>`:`<h3>${t}</h3>`;
   $("sheet").className="sheet"+(/^Text from |^Unknown number$/.test(t)?" text":"");
   $("sheet").innerHTML=`${head}<div class="body">${x}</div><div class="acts">${ch.map((c,i)=>`<button data-ch="${i}"${c[2]?" disabled":""}>${c[0]}</button>`).join("")}</div>`;
   modal.ch=ch;$("modal").classList.add("show");$("sheet").scrollTop=0}
@@ -562,6 +562,7 @@ function end(k){S.over=k;save();modal(ENDS[k][0],ENDS[k][1]+epi(),[["Start a new
 // ---------- art ----------
 // Joined into city.js at //@art. Everything the city draws is built here from code: small icons, a face for each person, a
 // scene for each place, and the map. All of it is SVG text; nothing is loaded. The people are original designs.
+// Where a photograph of a person or a place exists (photo.js), it is shown instead and the drawing here is the fallback.
 
 // A colour a little darker (a<0) or lighter (a>0) than hex.
 function shade(hex,a){
@@ -631,6 +632,9 @@ const FACE={
  crew:{sk:"#a8714d",hr:"fade",hc:"#120f0f",fh:"goatee",top:"hoodie",tc:"#2a2a30",bg:"#3a1f24"},
  you:{sk:"#c9a07e",hr:"fade",hc:"#2a211c",top:"tee",tc:"#ff3d7f",bg:"#2b2d31"}};
 function face(k,m,size,cls){
+  // a photograph if there is one; one that has still to load fades in over the drawing
+  const ph=photoFace(k,m||"flat",size);
+  if(ph&&!ART.fresh)return `<span class="fc pic${cls?" "+cls:""}" style="width:${size}px;height:${size}px">${ph}</span>`;
   const f=FACE[k]||FACE.you,s=f.sk,sd=shade(s,-.16),dk=shade(s,-.34),h=f.hc,hd=shade(h,-.25),hw=f.hw||18,hh=f.hh||22,
    lip=shade(s,-.42),o=[];
   o.push(`<rect width="100" height="100" fill="${f.bg}"/><circle cx="50" cy="40" r="34" fill="#fff" opacity=".07"/>`);
@@ -703,7 +707,7 @@ function face(k,m,size,cls){
   if(f.gl)o.push(`<g stroke="#26262a" stroke-width="1.4" fill="#ffffff22"><rect x="36.5" y="46" width="11" height="6.5" rx="2.4"/><rect x="52.5" y="46" width="11" height="6.5" rx="2.4"/></g><path d="M47.5 48.4q2.5-1.6 5 0" stroke="#26262a" stroke-width="1.3" fill="none"/>`);
   if(f.ear==="hoop")o.push(`<g stroke="#e6b83c" stroke-width="1.6" fill="none"><circle cx="${50-hw-1}" cy="56" r="3.2"/><circle cx="${50+hw+1}" cy="56" r="3.2"/></g>`);
   if(f.ear==="stud")o.push(`<g fill="#e6b83c"><circle cx="${50-hw-1}" cy="52" r="1.3"/><circle cx="${50+hw+1}" cy="52" r="1.3"/></g>`);
-  return `<span class="fc${cls?" "+cls:""}" style="width:${size}px;height:${size}px"><svg viewBox="9 7 82 82" width="${size}" height="${size}" aria-hidden="true">${o.join("")}</svg></span>`;
+  return `<span class="fc${ph?" pic":""}${cls?" "+cls:""}" style="width:${size}px;height:${size}px"><svg viewBox="9 7 82 82" width="${size}" height="${size}" aria-hidden="true">${o.join("")}</svg>${ph}</span>`;
 }
 
 // ---- scenes: one picture for each place, lit for the hour ----
@@ -892,6 +896,228 @@ function mapPlace(k,c){
   if(k==="lake")return `<g>${[[296,404,"#ff3d7f"],[322,404,"#2f8fe0"],[348,404,"#f4c542"]].map(([a,b,cc])=>`<path d="M${a-10} ${b}l10-10 10 10z" fill="${cc}"/>`).join("")}</g>`;
   return `<rect x="${x-44}" y="${y-36}" width="88" height="62" rx="4" fill="${shade(c,-.25)}"/><rect x="${x-44}" y="${y-36}" width="88" height="10" rx="4" fill="${c}"/><rect x="${x-36}" y="${y-20}" width="72" height="30" fill="#00000026"/>`;
 }
+// ---------- photographs ----------
+// Joined into city.js at //@photo. The city's places and people are drawn in code (art.js); this lays photographs over them.
+// The pictures are made by an image model on the server, once each, the first time anybody's screen asks for one
+// (netlify/lib/art.mts has the list, the prompts and the limits). They are kept there and fetched here through Netlify's
+// Image CDN as small WebP files. Anything not made yet, not loadable, or switched off in You falls back to the drawing, so the
+// city is whole with no connection at all. Nothing here can make a picture that is not on the server's list.
+
+// ready: {picture: tag} for every picture that exists. bad: failed to load this visit. gone: the server has given up on it.
+// seen: addresses that have loaded, so a re-drawn screen shows them at once instead of fading them in again.
+// q: pictures waiting to be asked for; fly: asked for and awaited.
+// pane: the panel being drawn (set by render in city.js); null means a dialog or a pop-up, which is always in view.
+const ART={on:false,total:0,ready:{},bad:{},gone:{},seen:{},raw:{},fly:{},tries:{},q:[],pause:0,gen:0,dirty:0,down:0,hold:0,cdnFail:0,nocdn:0,kick:0,tm:0,watch:0,pane:null};
+const artVis=()=>ART.pane==null||(ART.pane==="phone"?!!PH.open:ART.pane===$("app").dataset.tab);
+// Who has a photograph: 1 means one for every mood, 0 just the one.
+const SITTERS={rosa:1,nia:1,dex:1,marcus:1,sal:1,june:1,tommy:1,kow:1,reyes:0,vance:0,carol:0,ia:0,crew:0};
+const photoOn=()=>{try{return localStorage.getItem("shc.photo")!=="0"}catch(e){return true}};
+const artHas=k=>!!ART.ready[k]&&!ART.bad[k];
+// Photographs are in play: some exist or can be made, and the player has not chosen the drawings.
+const artUse=()=>photoOn()&&(ART.on||Object.keys(ART.ready).length>0);
+const artClean=m=>{const o={};if(m&&typeof m==="object")for(const k in m)if(/^[a-z0-9-]{3,24}$/.test(k)&&/^[a-f0-9]{6,16}$/.test(m[k]))o[k]=m[k];return o};
+const artSave=()=>{try{localStorage.setItem("shc.art",JSON.stringify(ART.ready))}catch(e){}};
+
+// Where the pictures stand on the server: which exist, which are being made, which have been given up on. Asked for as the
+// city opens and every few seconds while a picture is awaited. Until it first answers (or with no connection) the last list
+// that was kept is used. Returns the answer, or null if there was none.
+async function artList(){
+  try{
+    const r=await fetch("/api/art",{cache:"no-store"});if(!r.ok)throw 0;
+    const m=await r.json();if(!m||typeof m.ready!=="object")throw 0;
+    const rd=artClean(m.ready),news=Object.keys(rd).some(k=>ART.ready[k]!==rd[k])||Object.keys(ART.ready).some(k=>!rd[k]);
+    for(const k in rd)if(ART.ready[k]!==rd[k])delete ART.bad[k];
+    ART.on=!!m.on;ART.total=+m.total||0;ART.ready=rd;
+    for(const k of Array.isArray(m.gone)?m.gone:[])ART.gone[k]=1;
+    if(news){artSave();artDirty()}
+    return m;
+  }catch(e){return null}
+}
+async function artLoad(){
+  try{ART.ready=artClean(JSON.parse(localStorage.getItem("shc.art")||"null"))}catch(e){}
+  if(!await artList())ART.on=false;
+  artDirty();
+}
+
+// An <img> for a picture, cut to w by h by the Image CDN. If the CDN copy will not load, the picture as it was made is tried
+// (the error listener below), and after that the drawing. The screen is rebuilt on every tap, so a picture that has loaded
+// before is marked as shown from the start and decoded in step with the page: it must not blink. fade is for the scene box,
+// whose pictures stay on the page and always fade in over the one before.
+function artSrc(k,w,h){
+  const raw="/api/art/"+ART.ready[k]+"/"+k,direct=ART.nocdn||ART.raw[k];
+  return [direct?raw:"/.netlify/images?url="+encodeURIComponent(raw)+"&w="+w+"&h="+h+"&fit=cover&fm=webp&q=72",direct?"":raw];
+}
+function artImg(k,w,h,cls,fade){
+  const [src,raw]=artSrc(k,w,h),seen=!fade&&ART.seen[src];
+  return `<img class="${cls}${seen?" on":""}" src="${src}"${raw?` data-raw="${raw}"`:""} data-art="${k}" alt="" decoding="${seen?"sync":"async"}" draggable="false">`;
+}
+root.addEventListener("load",e=>{const t=e.target;if(t.tagName!=="IMG"||!t.dataset.art)return;
+  ART.seen[t.getAttribute("src")]=1;t.classList.add("on");
+  if(t.dataset.fell){ART.raw[t.dataset.art]=1;if(++ART.cdnFail>=2)ART.nocdn=1}
+  // a scene picture has arrived on top of the last one: once it has faded in, take away what is underneath
+  if(t.classList.contains("scene-pic")){const lay=t.parentNode;setTimeout(()=>{if(t.parentNode===lay)while(t.previousElementSibling)t.previousElementSibling.remove()},650)}},true);
+root.addEventListener("error",e=>{const t=e.target;if(t.tagName!=="IMG"||!t.dataset.art)return;
+  if(t.dataset.raw){const raw=t.dataset.raw;t.removeAttribute("data-raw");t.dataset.fell="1";t.src=raw;return}
+  ART.bad[t.dataset.art]=1;artDirty()},true);
+// A finger on the screen: hold off re-drawing until it lifts, so a tap is never lost to a picture arriving.
+root.addEventListener("pointerdown",()=>{ART.down=Date.now()},true);
+for(const ev of ["pointerup","pointercancel"])window.addEventListener(ev,()=>{ART.down=0},true);
+document.addEventListener("visibilitychange",()=>{if(!document.hidden)artKick()});
+
+// Something changed (a picture arrived, or one would not load): draw the screen again at a quiet moment.
+function artDirty(){
+  if(ART.dirty)return;ART.dirty=1;
+  const go=()=>{if(ART.down&&Date.now()-ART.down<4000||Date.now()<ART.hold)return setTimeout(go,150);ART.dirty=0;if(!host.hidden)render()};
+  setTimeout(go,60);
+}
+
+// ---- asking for pictures ----
+// Every picture a screen would like and does not have goes on the list with a priority; the newest screen's wants go first.
+// Two are asked for at a time. The server takes the request and makes the picture in its own time, so after asking, the city
+// looks at the server's list every few seconds until the picture is there. Nothing is asked for until the player has said
+// they are an adult, while the city is hidden behind a race, or with the drawings chosen.
+function artWant(k,p){
+  if(!ART.on||ART.ready[k]||ART.gone[k]||ART.fly[k]||!photoOn())return;
+  let x=ART.q.find(y=>y.k===k);
+  if(!x){x={k,p,t:0,g:ART.gen};ART.q.push(x)}
+  else if(x.g!==ART.gen){x.g=ART.gen;x.p=p}else if(p>x.p)x.p=p;
+  artKick();
+}
+function artKick(){if(ART.kick)return;ART.kick=1;setTimeout(()=>{ART.kick=0;artPump()},0)}
+function artPump(){
+  if(!ART.on||!photoOn()||!adult()||document.hidden||host.hidden||navigator.onLine===false)return;
+  const now=Date.now(),later=ms=>{clearTimeout(ART.tm);ART.tm=setTimeout(artPump,Math.max(200,ms))};
+  if(now<ART.pause)return later(ART.pause-now);
+  while(Object.keys(ART.fly).length<2){
+    const c=ART.q.filter(x=>x.t<=now).sort((a,b)=>(b.g===ART.gen?1000:0)+b.p-(a.g===ART.gen?1000:0)-a.p)[0];
+    if(!c){const nx=Math.min(...ART.q.map(x=>x.t));if(isFinite(nx))later(nx-now);return}
+    ART.q.splice(ART.q.indexOf(c),1);artAsk(c);
+  }
+}
+// Ask again later, a little later each time, but not for ever: a picture that will not come is left for the next visit.
+function artBack(c,sec){if((ART.tries[c.k]||0)<6){c.t=Date.now()+sec*1000;ART.q.push(c)}else ART.gone[c.k]=1}
+async function artAsk(c){
+  const now=Date.now();ART.fly[c.k]={c,idle:now};ART.tries[c.k]=(ART.tries[c.k]||0)+1;
+  let st=0;
+  try{st=(await fetch("/api/art-make",{method:"POST",headers:{"content-type":"application/json"},body:JSON.stringify({key:c.k})})).status}catch(e){}
+  if(st===202||st===200)return artWatch();
+  // not taken: too many asks, no connection, or no such function on this host
+  delete ART.fly[c.k];ART.pause=Date.now()+(st===429?60000:30000);artBack(c,45);artPump();
+}
+function artWatch(){if(!ART.watch)ART.watch=setTimeout(artPoll,4000)}
+async function artPoll(){
+  ART.watch=0;
+  if(!Object.keys(ART.fly).length)return;
+  const m=await artList(),now=Date.now();
+  for(const k of Object.keys(ART.fly)){
+    const f=ART.fly[k];
+    if(ART.ready[k])delete ART.fly[k];
+    else if(m&&(m.gone||[]).includes(k)){ART.gone[k]=1;delete ART.fly[k]}
+    else if(m&&(m.busy||[]).includes(k))f.idle=now;
+    else if(now-f.idle>20000){delete ART.fly[k];artBack(f.c,20*ART.tries[k])}   // nobody is making it and it is not there
+  }
+  if(m&&!m.on){ART.on=false;ART.q=[];ART.fly={}}
+  if(!m)ART.pause=now+30000;
+  if(Object.keys(ART.fly).length)artWatch();
+  artPump();
+}
+
+// ---- which picture ----
+// The pictures a place would like at this hour, best first.
+function sceneKeys(k,h,o){
+  const n=dark(h),t=n?"-night":"-day";
+  if(k==="home")return [(o.pad===2?"home2":o.pad===1?"home1":(!!o.bed+!!o.tv+!!o.fridge>=2?"home0f":"home0"))+t];
+  if(k==="bar")return [o.closed&&!n?"bar-day":"bar-night"];   // a bar with no windows looks the same whenever it is open
+  if(k==="court"&&o.party)return ["court-party","court"+t];
+  if(k==="gym"&&o.fight&&!o.closed)return ["gym-fight","gym-night"];
+  if(k==="lake"&&!n&&!o.closed&&(o.race||o.boat))return [o.race?"lake-race":"lake-boat","lake-day"];
+  return [k+t];
+}
+// The photograph the scene box should show, or null for the drawing: {k: the picture, fx: " asnight" when a day picture is
+// standing in for the night, tint: the light of the hour laid over it}.
+function photoPick(k,h,o){
+  if(!artUse())return null;
+  const want=sceneKeys(k,h,o),n=dark(h);
+  want.forEach((x,i)=>artWant(x,(artVis()?100:50)-i*5));
+  let use=want.find(artHas),fx="";
+  if(!use){   // until the night picture exists, the day picture darkened; the bar and the docks, first seen at night, lend their night picture to the day
+    const alt=want[want.length-1].replace(/-(day|night)$/,(m,t)=>t==="day"?"-night":"-day"),day=/-day$/.test(alt);
+    if(artHas(alt)&&(day||k==="bar"||k==="docks")){use=alt;if(n&&day)fx=" asnight"}
+  }
+  if(!use)return null;
+  return {k:use,fx,tint:fx?"night":!/-day$|-race$|-boat$/.test(use)||k==="bar"?"":h===6?"dawn":h===18?"gold":h===19?"dusk":""};
+}
+// Brings the scene box (#scene, which stays on the page while the rest of Here is rebuilt) up to date. A new photograph is
+// laid over whatever is showing and fades in once it has loaded, so one place dissolves into the next and day into night;
+// what was underneath is removed when the fade is over (the load listener above). With no photograph the drawing is shown.
+// over is what sits on top of the picture: the faces of who is here.
+function sceneSync(k,h,o,over){
+  const box=$("scene"),lay=$("lay"),p=photoPick(k,h,o);
+  box.className="scene"+(p?" pic"+(o.closed?" shut":""):artUse()?" tall":"");
+  if(!p)lay.innerHTML=scene(k,h,o);
+  else{
+    let top=lay.lastElementChild;const id=p.k+p.fx+ART.ready[p.k];
+    if(!top||top.dataset.id!==id){
+      if(top&&top.tagName==="IMG"&&!top.classList.contains("on")){top.remove();top=lay.lastElementChild}   // one that never arrived
+      if(!top||top.tagName!=="IMG")lay.innerHTML=scene(k,h,o);   // nothing photographed to dissolve from: start from this place's drawing
+      lay.insertAdjacentHTML("beforeend",artImg(p.k,1200,675,"scene-pic"+p.fx,1));
+      lay.lastElementChild.dataset.id=id;
+    }
+  }
+  $("sceneover").innerHTML=(p&&p.tint?`<i class="tint ${p.tint}"></i>`:"")+(p&&o.closed?`<b class="shuttag">Closed</b>`:"")
+   +(photoWait(k,h,o)?`<span class="making">${ico("cam")}photo on its way</span>`:"")+over;
+}
+// True while the photograph a place wants at this hour is still to come, for the note on the scene.
+function photoWait(k,h,o){const w=sceneKeys(k,h,o)[0];return photoOn()&&ART.on&&!ART.ready[w]&&!ART.gone[w]}
+// A person's photograph for a mood, or "" for the drawing. Until the mood's own picture exists their ordinary one stands in.
+// A picture that has not loaded yet fades in over something: their ordinary photograph if that has loaded, otherwise the
+// drawing, which face() puts underneath when ART.fresh is set.
+function photoFace(k,m,size){
+  ART.fresh=false;
+  if(!artUse()||!SITTERS.hasOwnProperty(k))return "";
+  const flat=k+"-flat",want=SITTERS[k]&&m&&m!=="flat"?k+"-"+m:flat;
+  artWant(want,artVis()?80:30);
+  const use=artHas(want)?want:artHas(flat)?flat:"";
+  if(!use)return "";
+  const px=size<=34?96:256,seen=x=>!!ART.seen[artSrc(x,px,px)[0]];   // two sizes only, so a face loaded for one spot is ready for the next
+  if(seen(use))return artImg(use,px,px,"");
+  if(use!==flat&&artHas(flat)&&seen(flat))return artImg(flat,px,px,"")+artImg(use,px,px,"");
+  ART.fresh=true;
+  return artImg(use,px,px,"");
+}
+// Called as each screen is drawn. The everyday pictures (every place by day and night, everyone's ordinary face) are asked for
+// quietly behind whatever is on screen, so the city fills in during the first few minutes anyone plays it.
+function artFrame(){
+  ART.gen++;
+  if(!ART.on||!photoOn())return;
+  const so={pad:S.z.pad,bed:S.home.bed,tv:S.home.tv,fridge:S.home.fridge};
+  for(const k in L)for(const h of [12,23])for(const x of sceneKeys(k,h,k==="home"?so:{closed:k==="bar"&&h===12}))artWant(x,k===S.at?30:10);
+  for(const k in SITTERS)artWant(k+"-flat",SITTERS[k]?20:5);
+}
+
+// ---- the player's side of it ----
+function photoSet(on){try{localStorage.setItem("shc.photo",on?"1":"0")}catch(e){}if(on)artKick();else ART.q=[]}
+const ARTNAME={home0:"Your studio, bare",home0f:"Your studio, furnished",home1:"The one-bedroom",home2:"The lake house"};
+function artLabel(k){
+  const [a,b]=k.split("-"),what={day:"day",night:"night",flat:"",up:"happy",down:"worried",cold:"cold",party:"block party",fight:"fight night",race:"race day",boat:"boat show"}[b]||b;
+  const who=ARTNAME[a]||(L[a]&&L[a].n)||(P[a]&&P[a].n)||({reyes:"Reyes",vance:"Vance",carol:"Carol",ia:"Internal Affairs",crew:"A crew"})[a]||a;
+  return who+(what?" · "+what:"");
+}
+// Every photograph made so far, on one sheet.
+function photoWall(){
+  const ks=Object.keys(ART.ready).filter(artHas),pl=ks.filter(k=>!/-(flat|up|down|cold)$/.test(k)),pe=ks.filter(k=>/-(flat|up|down|cold)$/.test(k));
+  modal("Photos",`<div class="wall">${pl.map(k=>`<figure>${artImg(k,480,270,"")}<figcaption>${artLabel(k)}</figcaption></figure>`).join("")}</div>`
+   +`<div class="wall faces">${pe.map(k=>`<figure><span class="fc pic" style="width:76px;height:76px">${artImg(k,256,256,"")}</span><figcaption>${artLabel(k)}</figcaption></figure>`).join("")}</div>`,[["Close",0]]);
+}
+function photoCard(){
+  const n=Object.keys(ART.ready).length,on=photoOn();
+  const say=!on?"The drawn city. Switch to Photos for the real thing."
+   :ART.on?(n>=ART.total?"All "+n+" photos are made.":n+" of "+ART.total+" photos made. The rest are made as you play: each takes a few seconds, once, and is kept for everyone.")
+   :n?n+" photos. New ones can't be made right now, so anything missing is drawn.":"Photos need the live site and a connection. Until then the city is drawn.";
+  return `<section class="card"><h3>${ico("cam")}Pictures<small>${on&&(ART.on||n)?"photos":"drawn"}</small></h3>
+<div class="seg"><button data-x="${xa(()=>photoSet(1))}" aria-pressed="${on}">Photos</button><button data-x="${xa(()=>photoSet(0))}" aria-pressed="${!on}">Drawn</button></div>
+<p class="note">${say}</p>${on&&n?`<button class="go" data-x="${xa(photoWall)}">${ico("cam")}See all ${n}</button>`:""}</section>`;
+}
 // ---------- the screen ----------
 // Joined into city.js at //@ui. Who is where at what hour, the pop-ups that show what a tap just did, the morning recap, the list
 // of what to do next, and the five tabs (Here, Map, Hustles, People, You) plus the phone. The game itself stays in city.js and
@@ -1012,16 +1238,18 @@ function hereView(){
   // a mood line is written for the person's own spot (Nia's is about the bar), so it shows only there
   const ow=WHO[S.at],ml=op&&ow&&who.includes(ow)&&stage(ow)>=0&&pp(ow).met?P[ow].mood[pp(ow).mood]:"";
   const last=S.log[0],nx=GL.find(x=>x.at!==S.at&&x.pri>=30);
-  let h=`<div class="scene">${scene(S.at,S.h,so)}`
-   +(who.length?`<div class="whohere">${who.map(k=>`<button class="chip${pp(k).met?"":" new"}" data-who="${k}" aria-label="Talk to ${P[k].n}">${face(k,moodOf(k),50)}<b>${P[k].n}</b></button>`).join("")}</div>`:"")+`</div>`;
-  h+=`<div class="phead"><h2>${p.n}</h2><span class="hrs${op?"":" shut"}">${hrs}</span></div>`;
+  // The picture of the place stays on the page between redraws (sceneSync in photo.js), so one photograph can fade into the
+  // next. Everything under it is rebuilt each time.
+  if(!$("scene"))$("here").innerHTML=`<div class="scene" id="scene"><div id="lay"></div><div id="sceneover"></div></div><div id="herebody"></div>`;
+  sceneSync(S.at,S.h,so,who.length?`<div class="whohere">${who.map(k=>`<button class="chip${pp(k).met?"":" new"}" data-who="${k}" aria-label="Talk to ${P[k].n}">${face(k,moodOf(k),50)}<b>${P[k].n}</b></button>`).join("")}</div>`:"");
+  let h=`<div class="phead"><h2>${p.n}</h2><span class="hrs${op?"":" shut"}">${hrs}</span></div>`;
   if(last)h+=`<p class="story"><time>${last.t}</time>${last.x}</p>`;
   h+=`<p class="desc">${desc}${ml?` <em>${ml}</em>`:""}</p>`;
   if(nx)h+=goalBtn(nx,"next");
   h+=op?`<div class="acts">${acts.map((a,i)=>`<button class="act${a.hot?" hot":""}" data-a="${i}"${a.ok?"":" disabled"}><span>${a.n}</span><small>${a.s}</small></button>`).join("")}</div>`
    :`<p class="shutmsg">Closed right now. ${p.n} opens at ${fmtH(p.o[0])}. Head somewhere else, or go home and sleep.</p>`;
   if(S.crates)h+=`<p class="note">On you: ${S.crates} crate${S.crates>1?"s":""} of hot merchandise. Cops will care.</p>`;
-  $("here").innerHTML=h;
+  $("herebody").innerHTML=h;
 }
 
 // ---- Map ----
@@ -1059,7 +1287,8 @@ function travel(a,b){
   let len=0;const seg=[0];for(let i=1;i<pts.length;i++){len+=Math.hypot(pts[i][0]-pts[i-1][0],pts[i][1]-pts[i-1][1]);seg.push(len)}
   const end=()=>{me.style.transform=`translate(${bx-38}px,${by-38}px)`};
   if(!me.animate||matchMedia("(prefers-reduced-motion: reduce)").matches||len<1)return end();
-  const an=me.animate(pts.map((p,i)=>({transform:`translate(${p[0]}px,${p[1]}px)`,offset:len?seg[i]/len:i/(pts.length-1)})),{duration:Math.min(1100,350+len*1.6),easing:"ease-in-out"});
+  const dur=Math.min(1100,350+len*1.6);ART.hold=Date.now()+dur+100;
+  const an=me.animate(pts.map((p,i)=>({transform:`translate(${p[0]}px,${p[1]}px)`,offset:len?seg[i]/len:i/(pts.length-1)})),{duration:dur,easing:"ease-in-out"});
   an.onfinish=end;
 }
 
@@ -1092,7 +1321,7 @@ function youView(){
    +sec("Your life",row("Ride",S.car?"Old pickup":"On foot")+row("Ski",I.craft+" · "+I.cls+" · "+I.parts+" part level"+(I.parts===1?"":"s")+(I.wear<60?" · needs service":""))
      +row("Series",I.round>=I.total?"Finished "+ord(S.tourPos||I.pos):(I.round?ord(I.pos)+" on "+I.pts+" pts · ":"")+(I.mid?"moto 2 of ":"")+"round "+(I.round+1)+" on day "+motoDay(I.round))
      +row("Place",(S.z.pad?PAD[S.z.pad][0]:own.length?"Studio with "+own.join(", "):"Mattress on the floor")+(S.q.nia===3?", and Nia":"")+(S.bag?", and Dex's bag":""))+moreYou())
-   +sec("Street log",`<div class="log" id="log">${S.log.map(l=>`<p><time>${l.t}</time>${l.x}</p>`).join("")}</div>`)
+   +sec("Street log",`<div class="log" id="log">${S.log.map(l=>`<p><time>${l.t}</time>${l.x}</p>`).join("")}</div>`)+photoCard()
    +`<div class="youbtns"><button id="free">${ico("ski")}Free play <small>race, tour, drag, items, crates</small></button><button id="reset">${ico("x")}Start a new life <small>wipes save</small></button></div>`;
 }
 
@@ -1828,7 +2057,10 @@ function go(k){
 function render(){
   while(!open()&&!S.over&&S.pend.length){const [k,a]=S.pend.shift().split(":");EV[k]&&EV[k](a)}
   save();if(!S.d0)S.d0=snap();
-  XA=[];GL=goals();hud();hereView();mapView();hustleView();peopleView();youView();phoneView();
+  XA=[];artFrame();GL=goals();hud();
+  // ART.pane tells photo.js which panel is being drawn, so pictures on the panel in view are asked for first
+  for(const [k,f] of [["here",hereView],["map",mapView],["hustle",hustleView],["people",peopleView],["you",youView],["phone",phoneView]]){ART.pane=k;f()}
+  ART.pane=null;
 }
 // Every tap that does something is wrapped in a snapshot, so what it changed can pop up (toast, ui.js).
 const did1=fn=>{const a=snap();fn();render();toast(deltas(a,snap()))};
@@ -1869,7 +2101,7 @@ function gate(){
 HS.city(true);host.hidden=false;if(!adult())gate();
 for(const i of root.querySelectorAll("#tabs [data-i]"))i.outerHTML=ico(i.dataset.i);$("phico").outerHTML=ico("phone");
 const first=!S.log.length;if(first)log("Day 1. $200, a studio apartment and a bare ski. Rent's due on day 8. The first race weekend is day 5.");
-render();
+artLoad();render();
 if(!first&&!S.asp&&!S.over)aimPick();
 if(first)modal("Day 1","New city, $200, a bare ski, and rent due on day 8.<ul><li><b>Here</b> is where you are and what you can do. Tap a face to talk. <b>Map</b> gets you around. <b>Hustles</b> is every way to make money. <b>People</b> are the eight who'll remember what you do.</li><li>A race weekend every five days, starting day 5, at the Lake. Your ski gets built at Tommy's Garage out of the same money you live on.</li><li>Bond is how close you are. Trust is whether they believe you. They move separately, and people talk.</li><li>Your phone buzzes. Saying yes is a promise.</li><li>Not everything here is legal. Heat brings the law, on the street and on the water.</li></ul>",[["Let's go",0]]);
 if(first)aimPick();

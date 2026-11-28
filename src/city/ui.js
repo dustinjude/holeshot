@@ -118,16 +118,18 @@ function hereView(){
   // a mood line is written for the person's own spot (Nia's is about the bar), so it shows only there
   const ow=WHO[S.at],ml=op&&ow&&who.includes(ow)&&stage(ow)>=0&&pp(ow).met?P[ow].mood[pp(ow).mood]:"";
   const last=S.log[0],nx=GL.find(x=>x.at!==S.at&&x.pri>=30);
-  let h=`<div class="scene">${scene(S.at,S.h,so)}`
-   +(who.length?`<div class="whohere">${who.map(k=>`<button class="chip${pp(k).met?"":" new"}" data-who="${k}" aria-label="Talk to ${P[k].n}">${face(k,moodOf(k),50)}<b>${P[k].n}</b></button>`).join("")}</div>`:"")+`</div>`;
-  h+=`<div class="phead"><h2>${p.n}</h2><span class="hrs${op?"":" shut"}">${hrs}</span></div>`;
+  // The picture of the place stays on the page between redraws (sceneSync in photo.js), so one photograph can fade into the
+  // next. Everything under it is rebuilt each time.
+  if(!$("scene"))$("here").innerHTML=`<div class="scene" id="scene"><div id="lay"></div><div id="sceneover"></div></div><div id="herebody"></div>`;
+  sceneSync(S.at,S.h,so,who.length?`<div class="whohere">${who.map(k=>`<button class="chip${pp(k).met?"":" new"}" data-who="${k}" aria-label="Talk to ${P[k].n}">${face(k,moodOf(k),50)}<b>${P[k].n}</b></button>`).join("")}</div>`:"");
+  let h=`<div class="phead"><h2>${p.n}</h2><span class="hrs${op?"":" shut"}">${hrs}</span></div>`;
   if(last)h+=`<p class="story"><time>${last.t}</time>${last.x}</p>`;
   h+=`<p class="desc">${desc}${ml?` <em>${ml}</em>`:""}</p>`;
   if(nx)h+=goalBtn(nx,"next");
   h+=op?`<div class="acts">${acts.map((a,i)=>`<button class="act${a.hot?" hot":""}" data-a="${i}"${a.ok?"":" disabled"}><span>${a.n}</span><small>${a.s}</small></button>`).join("")}</div>`
    :`<p class="shutmsg">Closed right now. ${p.n} opens at ${fmtH(p.o[0])}. Head somewhere else, or go home and sleep.</p>`;
   if(S.crates)h+=`<p class="note">On you: ${S.crates} crate${S.crates>1?"s":""} of hot merchandise. Cops will care.</p>`;
-  $("here").innerHTML=h;
+  $("herebody").innerHTML=h;
 }
 
 // ---- Map ----
@@ -165,7 +167,8 @@ function travel(a,b){
   let len=0;const seg=[0];for(let i=1;i<pts.length;i++){len+=Math.hypot(pts[i][0]-pts[i-1][0],pts[i][1]-pts[i-1][1]);seg.push(len)}
   const end=()=>{me.style.transform=`translate(${bx-38}px,${by-38}px)`};
   if(!me.animate||matchMedia("(prefers-reduced-motion: reduce)").matches||len<1)return end();
-  const an=me.animate(pts.map((p,i)=>({transform:`translate(${p[0]}px,${p[1]}px)`,offset:len?seg[i]/len:i/(pts.length-1)})),{duration:Math.min(1100,350+len*1.6),easing:"ease-in-out"});
+  const dur=Math.min(1100,350+len*1.6);ART.hold=Date.now()+dur+100;
+  const an=me.animate(pts.map((p,i)=>({transform:`translate(${p[0]}px,${p[1]}px)`,offset:len?seg[i]/len:i/(pts.length-1)})),{duration:dur,easing:"ease-in-out"});
   an.onfinish=end;
 }
 
@@ -198,7 +201,7 @@ function youView(){
    +sec("Your life",row("Ride",S.car?"Old pickup":"On foot")+row("Ski",I.craft+" · "+I.cls+" · "+I.parts+" part level"+(I.parts===1?"":"s")+(I.wear<60?" · needs service":""))
      +row("Series",I.round>=I.total?"Finished "+ord(S.tourPos||I.pos):(I.round?ord(I.pos)+" on "+I.pts+" pts · ":"")+(I.mid?"moto 2 of ":"")+"round "+(I.round+1)+" on day "+motoDay(I.round))
      +row("Place",(S.z.pad?PAD[S.z.pad][0]:own.length?"Studio with "+own.join(", "):"Mattress on the floor")+(S.q.nia===3?", and Nia":"")+(S.bag?", and Dex's bag":""))+moreYou())
-   +sec("Street log",`<div class="log" id="log">${S.log.map(l=>`<p><time>${l.t}</time>${l.x}</p>`).join("")}</div>`)
+   +sec("Street log",`<div class="log" id="log">${S.log.map(l=>`<p><time>${l.t}</time>${l.x}</p>`).join("")}</div>`)+photoCard()
    +`<div class="youbtns"><button id="free">${ico("ski")}Free play <small>race, tour, drag, items, crates</small></button><button id="reset">${ico("x")}Start a new life <small>wipes save</small></button></div>`;
 }
 
