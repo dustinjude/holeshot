@@ -92,7 +92,8 @@ const PEOPLE: Record<string, Sitter> = {
   vance: { g: "him", who: "a pale white man of 48 with neat dark hair, clean-shaven, wearing a camel overcoat over a black turtleneck", face: "calm and cold, faintly amused", behind: "a foggy freight dock at dusk" },
   carol: { g: "her", who: "a white woman of 61 with a gray bob haircut, wearing a white dress shirt, a black bow tie and a burgundy vest, the clothes of a card dealer", face: "stony, giving nothing away", behind: "a dim back room and a green felt card table" },
   ia: { g: "her", who: "a woman of 45 with a dark chin-length bob, wearing a gray suit jacket, a white shirt and a dark tie", face: "guarded and professional", behind: "a plain gray office" },
-  crew: { g: "him", who: "a man of 27 with brown skin, a short fade haircut and a goatee, wearing a dark hoodie with the hood down", face: "a hard, unfriendly stare", behind: "a city alley at night under one streetlight" },
+  // the crew is nobody in particular: a hood, a streetlight, and most of the face left in shadow
+  crew: { g: "him", who: "a man of 27 in a dark hoodie with the hood up, lit from above by one streetlight so that hard shadow hides most of his face and only the jaw, the mouth and a glint of the eyes catch the light", face: "set and unfriendly", behind: "a city alley at night" },
 };
 export const MOODS: Record<string, string> = {
   up: "a warm, easy smile that reaches the eyes, as if a friend has just walked in",
@@ -123,8 +124,9 @@ const idOf = (key: string) => key + "." + tagOf(key);
 // ---- the image model ----
 export type Img = { type: string; data: Uint8Array; model?: string };
 export type Gen = (spec: Spec, base?: Img) => Promise<Img>;
-// Thrown by a Gen. soft means the attempt cost nothing and says nothing about the prompt (the gateway was busy or away), so it
-// is not counted against the picture.
+// Thrown by a Gen. soft means the attempt cost nothing and says nothing about the prompt (the gateway was busy, away, or
+// refused the request outright), so it is not counted against the picture. What is counted is an answer that was paid for
+// and had no picture in it.
 export class GenError extends Error {
   soft: boolean; wait: number;
   constructor(msg: string, soft = false, wait = 0) { super(msg); this.soft = soft; this.wait = wait; }
@@ -141,7 +143,19 @@ export const enabled = (env: Env) => gateway(env) && (env("HS_ART") || "").toLow
 // function carries no SDK and the test can stand in for the network.
 export function gemini(env: Env, fetchFn: typeof fetch = fetch): Gen {
   const models = [...new Set([env("HS_ART_MODEL"), ...MODELS].filter(Boolean))] as string[];
-  let at = 0;   // the model in use; it moves on if the gateway does not have one
+  let at = 0, looked = false;   // at: the model in use; it moves on if the gateway does not have one
+  // Models come and go. If none on the list is served any more, ask the gateway once which picture models it has now.
+  const more = async (): Promise<boolean> => {
+    if (looked) return false;
+    looked = true;
+    try {
+      const r = await fetchFn("https://api.netlify.com/api/v1/ai-gateway/providers/detailed");
+      const found = [...new Set((await r.text()).match(/gemini-[a-z0-9.-]*image[a-z0-9.-]*/g) || [])].filter(m => !models.includes(m));
+      found.sort((a, b) => +/pro/.test(a) - +/pro/.test(b));   // the dearer "pro" models last
+      models.push(...found);
+      return found.length > 0;
+    } catch { return false; }
+  };
   return async (spec, base) => {
     const parts: any[] = [];
     if (base) parts.push({ inlineData: { mimeType: base.type, data: Buffer.from(base.data).toString("base64") } });
@@ -160,10 +174,11 @@ export function gemini(env: Env, fetchFn: typeof fetch = fetch): Gen {
       if (r.ok) break;
       const why = (await r.text().catch(() => "")).slice(0, 300);
       if (r.status === 429) throw new GenError("the gateway is rate-limited", true, 60);
-      if (r.status === 404 && at < models.length - 1) { at++; shape = true; continue; }   // not a model this gateway has
+      if (r.status === 404 && (at < models.length - 1 || await more())) { at++; shape = true; continue; }   // not a model this gateway has
       if (r.status === 400 && shape) { shape = false; continue; }   // a model without the shape setting: the prompt names the shape too
       if (r.status === 400 && at < models.length - 1) { at++; shape = true; continue; }
-      throw new GenError(`gateway ${r.status}: ${why}`, r.status >= 500 || r.status === 401 || r.status === 403, 120);
+      // refused or broken before any picture was made: nothing was spent, so try again later rather than count it
+      throw new GenError(`gateway ${r.status} from ${models[at]}: ${why}`, true, r.status === 400 || r.status === 404 ? 600 : 120);
     }
     const j: any = await r.json().catch(() => null), c = j?.candidates?.[0];
     // a model that thinks may send sketches first; the picture is the last part that is not a thought
@@ -184,9 +199,10 @@ const STRIKES = 3, REST_MS = 7 * 864e5;
 type Out = { status: number; body: Record<string, unknown> };
 const out = (status: number, body: Record<string, unknown>): Out => ({ status, body });
 
-// Where things stand: ready is every picture that exists, as {picture: tag}; busy is those being made right now (a picture
-// counts as busy while the one it is edited from is being made); gone is those that have failed too often, and anything
-// edited from them. The city asks for this as it opens, and every few seconds while it is waiting for a picture.
+// Where things stand: ready is every picture that exists, as {picture: tag}; rest is every one that does not; busy is those
+// being made right now (a picture counts as busy while the one it is edited from is being made); gone is those that have
+// failed too often, and anything edited from them; note is the latest failure. The city asks for this as it opens, and
+// every few seconds while it is waiting for a picture.
 export async function manifest(store: any, on: boolean, now = Date.now()): Promise<Record<string, unknown>> {
   const ready: Record<string, string> = {}, locked: string[] = [], failed: string[] = [];
   const { blobs } = await store.list();   // pictures, locks and failure notes together: a few hundred short names at most
@@ -201,7 +217,10 @@ export async function manifest(store: any, on: boolean, now = Date.now()): Promi
   for (const key of failed) { const f = await store.get("fail/" + idOf(key), { type: "json" }); if (f && f.n >= STRIKES && now - f.t < REST_MS) dead.add(key); }
   const up = (key: string, set: Set<string>): boolean => set.has(key) || (!!CATALOG[key].from && up(CATALOG[key].from as string, set));
   const rest = Object.keys(CATALOG).filter(k => !ready[k]);
-  return { on, total: Object.keys(CATALOG).length, ready, busy: rest.filter(k => up(k, live)), gone: rest.filter(k => up(k, dead)) };
+  const note = await store.get("note", { type: "json" });   // the latest failure, if it is from the last hour
+  // rest is every picture not made yet, in the order they should be made (a picture after the one it is edited from)
+  return { on, total: Object.keys(CATALOG).length, ready, rest, busy: rest.filter(k => up(k, live)), gone: rest.filter(k => up(k, dead)),
+    ...(note && now - note.t < 36e5 ? { note: { key: String(note.key), why: String(note.why), ago: Math.round((now - note.t) / 1000) } } : {}) };
 }
 
 // One picture, for the address /api/art/<tag>/<picture>. Null if there is no such picture or it has not been made.
@@ -245,11 +264,14 @@ export async function make(key: string, d: { store: any; gen: Gen; on: boolean; 
   }
   try {
     const img = await d.gen(spec, base);
-    await store.set("img/" + id, img.data, { metadata: { type: img.type, model: img.model || "", at: new Date(now).toISOString() }, onlyIfNew: true });
+    const bytes = img.data.buffer.slice(img.data.byteOffset, img.data.byteOffset + img.data.byteLength) as ArrayBuffer;   // Blobs takes an ArrayBuffer
+    await store.set("img/" + id, bytes, { metadata: { type: img.type, model: img.model || "", at: new Date(now).toISOString() }, onlyIfNew: true });
     return out(200, { ok: true, key, tag, made: true });
   } catch (e: any) {
     const soft = e instanceof GenError && e.soft;
     console.error("art: " + key + " failed:", e?.message || e);
+    // the latest failure is kept where the list of pictures can show it, so a fault can be read without the function logs
+    await store.setJSON("note", { t: now, key, why: String(e?.message || e).slice(0, 200) }).catch(() => {});
     if (soft) return out(200, { ok: false, wait: e.wait || 60 });
     const n = fail && now - fail.t < REST_MS ? fail.n + 1 : 1;
     await store.setJSON("fail/" + id, { n, t: now, why: String(e?.message || e).slice(0, 200) });

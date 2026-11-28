@@ -254,7 +254,11 @@ try {
   check(c.acts.some(a => /Hit the block party/.test(a)) && await page.evaluate(() => !!document.getElementById('city').shadowRoot.querySelector('[data-who="marcus"]')), 'a block party at the court, with Marcus at it');
   await press('Hit the block party'); await closeModals();
   check((await city()).log.some(l => /dance-off/.test(l)), 'the party happens');
+  // the walk home after dark and the night itself roll for street events and stops; this step is about the recap, so the
+  // dice are held still for it
+  await page.evaluate(() => { Math.realRandom = Math.random; Math.random = () => .99; });
   await tabTo('here'); await goTo('home'); await press('Sleep');
+  await page.evaluate(() => { Math.random = Math.realRandom; });
   c = await city(); for (let i = 0; i < 6 && c.modal && !/^Day \d+/.test(c.modal); i++) { await page.evaluate(() => { const b = [...document.getElementById('city').shadowRoot.querySelectorAll('[data-ch]:not([disabled])')]; b[b.length - 1].click(); }); c = await city(); }
   check(/^Day \d+/.test(c.modal || '') && /Money/.test(c.modal), 'waking up brings the recap: ' + (c.modal || '').slice(0, 80));
   await page.screenshot({path: join(OUT, 'recap.png')});

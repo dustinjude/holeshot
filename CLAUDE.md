@@ -181,17 +181,23 @@ The city's places and people are photographs where one exists, and the drawings 
   there is no key anywhere. `POST /api/art-make {key}` (artmake.mts, a background function, because a picture can take longer
   than the 60 seconds an ordinary function gets) makes one picture if nobody has, and keeps it in the site-wide Blobs store
   `art`, which deploy previews and the live site share. **This spends the site's Netlify credits**: about 7 cents a picture,
-  about $5 for all 65, once. The guard rails are in the lib: only listed pictures, each once, a lock, three failures and a
-  picture is left alone for a week, and `HS_ART=off` stops all making (kept pictures are still served).
-- **How they are served.** `GET /api/art` (art.mts) says which exist, are being made, or have been given up on. A picture's
+  about $5 for all 65, once. The guard rails are in the lib: only listed pictures, each once, a lock, three paid-for answers
+  with no picture in them and a picture is left alone for a week, and `HS_ART=off` stops all making (kept pictures are still
+  served). A request the gateway refuses or cannot take costs nothing and is simply tried again later; if the listed models
+  are ever retired, the function asks the gateway which picture models it has.
+- **How they are served.** `GET /api/art` (art.mts) says which exist, which are still to make, are being made, or have been
+  given up on, and carries the latest failure (`note`) for an hour: open that address to see why pictures are not coming. A picture's
   address is `/api/art/<tag>/<name>`; the tag is a hash of its prompt, so changing a prompt makes a new picture with a new
   address and nothing has to be purged. The city never shows that address directly: it asks the Image CDN for a small WebP
   (`/.netlify/images?url=...`), and falls back to the original, then to the drawing.
 - **The city's side** (`src/city/photo.js`, state in `ART`): `face()` and the scene box in `hereView` use a photograph when
   there is one (`photoFace`, `photoScene`, `sceneKeys` picks the picture for the place, hour and what is going on). Pictures
   on screen are asked for first, two at a time, then the everyday ones quietly (`artFrame`); nothing is asked for before the
-  18+ answer, while racing, or with drawings chosen. You has the Photos/Drawn switch (`shc.photo`), a count, and a sheet of
-  every picture made (`photoWall`). The map and the icons stay drawn.
+  18+ answer, while racing, or with drawings chosen, and four tries in a row that bring nothing stop the asking for a while.
+  The scene box (`#scene`, `sceneSync`) stays on the page while the rest of Here is rebuilt, so one photograph dissolves into
+  the next; a face that has still to load fades in over the drawing. You has the Photos/Drawn switch (`shc.photo`), a count,
+  the latest failure, "Make the rest now" (every picture at once, about ten minutes with the game open) and a sheet of every
+  picture made (`photoWall`). The map and the icons stay drawn.
 - **Rules for the prompts.** Every person is an invented adult with a stated age; no real people, no one from the roster, no
   brands or logos, nothing sexual, no recognizable faces in the places. tests/art.mjs checks the words; do not loosen them.
 - **Not proven.** No picture has been made yet from here: the sandbox cannot reach the gateway, and deploy previews sit behind

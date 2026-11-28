@@ -29,18 +29,19 @@ const ALL = Object.keys(CATALOG);
 const tagFor = k => 'ab' + [...k].reduce((a, ch) => (a * 31 + ch.charCodeAt(0)) >>> 0, 7).toString(16).padStart(8, '0');
 const everything = () => Object.fromEntries(ALL.map(k => [k, tagFor(k)]));
 // ready: what exists. dead: pictures whose files will not load. hold: pictures the maker never finishes. nocdn: the resizing
-// service is down. slow: how long making takes.
-const art = {on: true, ready: {}, busy: new Set(), gone: [], posts: [], peak: 0, lists: 0, dead: new Set(), hold: new Set(), nocdn: false, slow: 1200, cdn: 0, raw: 0};
+// service is down. slow: how long making takes. broken: the maker takes every request and makes nothing.
+const art = {on: true, ready: {}, busy: new Set(), gone: [], posts: [], peak: 0, lists: 0, dead: new Set(), hold: new Set(), nocdn: false, slow: 1200, cdn: 0, raw: 0, broken: false, note: null};
 const isPlace = k => CATALOG[k]?.ar === '16:9';
 const hue = k => [...k].reduce((a, ch) => (a * 17 + ch.charCodeAt(0)) % 360, 0);
 const picture = k => isPlace(k)
   ? `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1200 675"><defs><linearGradient id="g" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="hsl(${hue(k)},55%,${/night|fight/.test(k) ? 14 : 62}%)"/><stop offset="1" stop-color="hsl(${(hue(k) + 40) % 360},45%,${/night|fight/.test(k) ? 6 : 34}%)"/></linearGradient></defs><rect width="1200" height="675" fill="url(#g)"/><rect y="470" width="1200" height="205" fill="#0006"/><text x="600" y="350" text-anchor="middle" font-family="sans-serif" font-weight="700" font-size="88" fill="#fff">${k}</text></svg>`
   : `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 192 192"><rect width="192" height="192" fill="hsl(${hue(k)},40%,30%)"/><circle cx="96" cy="80" r="44" fill="hsl(${hue(k.split('-')[0])},45%,62%)"/><rect x="30" y="132" width="132" height="70" rx="34" fill="hsl(${hue(k.split('-')[0])},45%,45%)"/><text x="96" y="186" text-anchor="middle" font-family="sans-serif" font-weight="700" font-size="22" fill="#fff">${k.split('-')[1]}</text></svg>`;
 async function mock(page) {
-  await page.route(u => u.pathname === '/api/art', r => { art.lists++; r.fulfill({json: {on: art.on, total: ALL.length, ready: art.ready, busy: [...art.busy], gone: art.gone}}); });
+  await page.route(u => u.pathname === '/api/art', r => { art.lists++; r.fulfill({json: {on: art.on, total: ALL.length, ready: art.ready, rest: ALL.filter(k => !art.ready[k]), busy: [...art.busy], gone: art.gone, ...(art.note ? {note: art.note} : {})}}); });
   await page.route(u => u.pathname === '/api/art-make', r => {
     const k = JSON.parse(r.request().postData()).key;
-    art.posts.push(k); art.busy.add(k); art.peak = Math.max(art.peak, art.busy.size);
+    art.posts.push(k); if (art.broken) return r.fulfill({status: 202, body: ''});
+    art.busy.add(k); art.peak = Math.max(art.peak, art.busy.size);
     if (!art.hold.has(k)) setTimeout(() => { art.busy.delete(k); if (ALL.includes(k) && !art.gone.includes(k)) { const from = CATALOG[k].from; if (from && !art.ready[from]) art.ready[from] = tagFor(from); art.ready[k] = tagFor(k); } }, art.slow);
     r.fulfill({status: 202, body: ''});
   });
@@ -167,7 +168,18 @@ try {
   art.gone = ['gym-day', 'gym-night', 'gym-fight']; for (const k of art.gone) delete art.ready[k]; art.posts = [];
   v = await at({h: 10, at: 'gym'}); await sleep(6000); v = await view();
   check(v.drawn && !art.posts.some(k => /^gym/.test(k)) && !v.making, 'a picture the server has given up on is left drawn and never asked for');
-  art.gone = []; art.ready = everything();
+  art.gone = []; art.ready = {}; art.posts = []; art.broken = true; art.note = {key: 'diner-day', why: 'gateway 400 from gemini-3.1-flash-image: <b>bad</b>', ago: 5};
+  v = await at({h: 10, at: 'diner'}); await sleep(26000);
+  const tried = art.posts.length;
+  check(tried >= 2 && tried <= 4 && (await view()).drawn, 'a maker that takes requests and makes nothing is asked a few times: ' + art.posts.join(', '));
+  await sleep(52000);
+  check(art.posts.length >= 4 && art.posts.length <= 6, 'and after four tries in a row came to nothing, asking stops for a while (' + art.posts.length + ' asks in 80 seconds)');
+  const after = art.posts.length; await sleep(12000);
+  check(art.posts.length === after, 'no more asks while it waits');
+  await tabTo('you'); await sleep(200);
+  check(await page.evaluate(() => { const p = [...document.getElementById('city').shadowRoot.querySelectorAll('.pane-you p.note')].find(x => /didn't come through/.test(x.textContent)); return !!p && /\(gateway 400 from gemini-3\.1-flash-image: <b>bad<\/b>\)/.test(p.textContent) && !p.querySelector('b'); }), 'You says why, with the server\'s words shown as text');
+  await tabTo('here');
+  art.broken = false; art.note = null; art.ready = everything(); art.posts = [];
 
   console.log('The player\'s switch');
   v = await at({h: 10, at: 'diner'}, {rosa: met});
@@ -189,7 +201,12 @@ try {
   art.on = false; art.ready = {'diner-day': tagFor('diner-day'), 'rosa-flat': tagFor('rosa-flat')}; art.posts = [];
   v = await at({h: 9, at: 'diner'}, {rosa: met, kow: met}); await sleep(5000); v = await view();
   check(v.scene === 'diner-day' && v.chips.join() === 'rosa-flat,drawn' && art.posts.length === 0, 'with making switched off, what exists is shown and nothing is asked for');
-  art.on = true; art.ready = everything();
+  art.on = true; art.ready = {}; art.posts = []; art.slow = 150;
+  v = await at({h: 10, at: 'diner'}, {rosa: met, kow: met}); await tabTo('you'); await sleep(300);
+  check(await press('Make the rest now'), 'You offers to make every photograph now');
+  await page.waitForFunction(() => /All 65 photos are made/.test(document.getElementById('city').shadowRoot.querySelector('.pane-you').textContent), null, {timeout: 240000});
+  check(Object.keys(art.ready).length === 65 && art.peak <= 2 && new Set(art.posts).size === art.posts.length, 'and it makes all 65, two at a time, each asked for once (' + art.posts.length + ' asks)');
+  art.slow = 1200; art.ready = everything();
 
   console.log('A smaller phone');
   await page.setViewportSize({width: 390, height: 780});

@@ -201,7 +201,7 @@ function youView(){
    +sec("Your life",row("Ride",S.car?"Old pickup":"On foot")+row("Ski",I.craft+" · "+I.cls+" · "+I.parts+" part level"+(I.parts===1?"":"s")+(I.wear<60?" · needs service":""))
      +row("Series",I.round>=I.total?"Finished "+ord(S.tourPos||I.pos):(I.round?ord(I.pos)+" on "+I.pts+" pts · ":"")+(I.mid?"moto 2 of ":"")+"round "+(I.round+1)+" on day "+motoDay(I.round))
      +row("Place",(S.z.pad?PAD[S.z.pad][0]:own.length?"Studio with "+own.join(", "):"Mattress on the floor")+(S.q.nia===3?", and Nia":"")+(S.bag?", and Dex's bag":""))+moreYou())
-   +sec("Street log",`<div class="log" id="log">${S.log.map(l=>`<p><time>${l.t}</time>${l.x}</p>`).join("")}</div>`)+photoCard()
+   +photoCard()+sec("Street log",`<div class="log" id="log">${S.log.map(l=>`<p><time>${l.t}</time>${l.x}</p>`).join("")}</div>`)
    +`<div class="youbtns"><button id="free">${ico("ski")}Free play <small>race, tour, drag, items, crates</small></button><button id="reset">${ico("x")}Start a new life <small>wipes save</small></button></div>`;
 }
 

@@ -2,7 +2,7 @@
 // copy updates itself when a new build is published. Fonts are cached the first time they load.
 // The city's photographs are kept in a cache of their own (ART) that outlives new builds: a picture's address changes
 // whenever the picture does, so a kept copy is never out of date.
-const VERSION = "holeshot-30c12abd47";
+const VERSION = "holeshot-7bb460e9fd";
 const FILES = ["./","icons/apple-touch-icon.png","icons/icon-192.png","icons/icon-512.png","icons/icon-maskable-512.png","index.html","js/GLTFLoader.js","js/city.js","js/game.js","js/three.min.js","manifest.webmanifest","models/green-black/model.json","models/green-black/tex0.jpg","models/green-black/tex1.jpg","models/green-black/tex2.jpg","models/rider-fly/model.json","models/rider-fly/tex0.jpg","models/rider-fly/tex1.jpg","models/rider-fly/tex2.jpg","models/ski-105/model.json","models/ski-105/tex0.jpg","models/ski-116/model.json","models/ski-116/tex0.jpg","models/ski-blue/model.json","models/ski-blue/tex0.jpg","models/vanjae-116/model.json","models/vanjae-116/tex0.jpg","models/vanjae-116/tex1.jpg","models/vanjae-116/tex2.jpg"];
 const ART = 'holeshot-art-1';
 self.addEventListener('install', e => {

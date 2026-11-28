@@ -17,7 +17,7 @@ class Store {
     this.m.set(k, {data, metadata: o.metadata || {}, etag});
     return {modified: true, etag};
   }
-  async set(k, d, o) { return this.put(k, d, o); }
+  async set(k, d, o) { if (!(typeof d === 'string' || d instanceof ArrayBuffer || d instanceof Blob)) throw new Error('Blobs takes a string, an ArrayBuffer or a Blob'); return this.put(k, d instanceof ArrayBuffer ? new Uint8Array(d) : d, o); }
   async setJSON(k, d, o) { return this.put(k, JSON.stringify(d), o); }
   async get(k, o = {}) { const c = this.m.get(k); return !c ? null : o.type === 'json' ? JSON.parse(c.data) : c.data; }
   async getMetadata(k) { const c = this.m.get(k); return c ? {etag: c.etag, metadata: c.metadata} : null; }
@@ -112,13 +112,16 @@ check(r.body.ok, 'after a week it is tried again');
 st = new Store(); g = model({err: new GenError('the gateway is rate-limited', true, 60)});
 for (let i = 0; i < 5; i++) r = await make('gym-day', {store: st, gen: g, on: true, now: now + i});
 check(r.status === 200 && r.body.wait === 60 && g.calls.length === 5 && ![...st.m.keys()].some(k => k.startsWith('fail/')), 'a busy gateway is not counted against the picture');
+mf = await manifest(st, true, now + 60_000);
+check(mf.note && mf.note.key === 'gym-day' && /rate-limited/.test(mf.note.why) && mf.note.ago === 60 && !mf.gone.length && !(await manifest(st, true, now + 2 * 36e5)).note, 'the latest failure is on the list for an hour, so it can be read without the logs');
 
 console.log('Serving');
 st = new Store(); g = model();
 await make('diner-day', {store: st, gen: g, on: true}); await make('nia-flat', {store: st, gen: g, on: true});
-await st.set('img/diner-day.0000000000', bytes('old'), {}); await st.set('img/junk', bytes('x'), {}); await st.set('img/constructor.abc', bytes('x'), {});
+await st.set('img/diner-day.0000000000', bytes('old').buffer, {}); await st.set('img/junk', bytes('x').buffer, {}); await st.set('img/constructor.abc', bytes('x').buffer, {});
 const m = await manifest(st, true);
 check(m.on === true && m.total === 65 && Object.keys(m.ready).sort().join() === 'diner-day,nia-flat' && m.ready['diner-day'] === tagOf('diner-day') && !m.busy.length && !m.gone.length, 'the list of what exists holds only pictures with their current tag');
+check(m.rest.length === 63 && !m.rest.includes('diner-day') && m.rest.every(k => !CATALOG[k].from || m.ready[CATALOG[k].from] || m.rest.indexOf(CATALOG[k].from) < m.rest.indexOf(k)), 'and names every picture still to make, each after the one it is edited from');
 const hit = await fetchImg(st, tagOf('nia-flat'), 'nia-flat');
 check(hit && hit.type === 'image/png' && (await new Response(hit.data).text()).startsWith('PIC A photorealistic head'), 'a picture is served with its type');
 check(await fetchImg(st, '0000000000', 'diner-day') === null && await fetchImg(st, tagOf('rosa-flat'), 'rosa-flat') === null && await fetchImg(st, 'abc', 'constructor') === null, 'an old tag, a picture not made yet and a made-up name all get nothing');
@@ -154,6 +157,15 @@ check(f.calls.length === 2 && !f.calls[1].body.generationConfig.imageConfig && f
 const threw = async (answers, spec = CATALOG['diner-day']) => { try { await gemini(env(E), net(answers))(spec); return null; } catch (e) { return e; } };
 let e = await threw([() => new Response('slow down', {status: 429})]);
 check(e instanceof GenError && e.soft && e.wait === 60, 'a rate limit is a soft failure');
+e = await threw([() => new Response('{"error":{"message":"bad request"}}', {status: 400})]);
+check(e instanceof GenError && e.soft && e.wait >= 300 && /gateway 400 from gemini-2\.5-flash-image/.test(e.message), 'a request the gateway refuses outright costs nothing, so it is soft, with a long wait: ' + e.message.slice(0, 50));
+e = await threw([() => new Response('boom', {status: 500})]);
+check(e instanceof GenError && e.soft, 'so is a gateway that is broken');
+// every model on the list has been retired: the gateway's own list is asked once
+const calls = [];
+const retired = async (url, init) => { calls.push(String(url)); if (/providers\/detailed/.test(url)) return new Response('{"models":["gemini-9-pro-image","gemini-9-flash-image","gemini-9-flash","gemini-2.5-flash-image"]}'); return /gemini-9-flash-image:/.test(url) ? good([{inlineData: {mimeType: 'image/png', data: png}}]) : new Response('{"error":{"message":"no such model"}}', {status: 404}); };
+gen = gemini(env(E), retired); img = await gen(CATALOG['diner-day']); await gen(CATALOG['court-day']);
+check(img.model === 'gemini-9-flash-image' && calls.filter(u => /providers/.test(u)).length === 1 && calls.length === 5, 'when every model on the list is gone the gateway is asked what it has, once, and a cheaper picture model is preferred: ' + img.model);
 e = await threw([() => new Response(JSON.stringify({promptFeedback: {blockReason: 'SAFETY'}}), {status: 200})]);
 check(e instanceof GenError && !e.soft && /SAFETY/.test(e.message), 'a refused prompt is a hard failure that says why');
 e = await threw([() => good([{text: 'I cannot draw that'}])]);
