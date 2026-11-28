@@ -2,7 +2,8 @@
    IDEA: a street map taped to a dashboard: signage lettering, pins, a wanted-style heat gauge.
    PICTURE: the city map itself, tap a spot to go there; your marker drives across it.
    COLOUR and TYPE: asphalt grey field, palm green support, hot pink accent; Bungee signage, Archivo text.
-   LAYOUT: status strip, map, then the place you're at with its actions; you, people and log below. */
+   LAYOUT: status strip, map, then the place you're at with its actions; you, people and log below.
+   On a phone the status strip stays at the top and a tab bar at the foot switches between the city, the people, you and the log. */
 :host{color-scheme:light dark;--bg:light-dark(#e7e5e0,#1b1c1f);--card:light-dark(#fff,#26282c);--ink:light-dark(#18191b,#eceae6);--mute:light-dark(#5d5f63,#a4a6aa);
 --asph:#2b2d31;--road:#44474d;--palm:#2f8f6b;--pink:#ff3d7f;--blue:#3a9ad9;--line:light-dark(#0000001a,#ffffff1a)}
 :host([data-theme=light]){color-scheme:light}:host([data-theme=dark]){color-scheme:dark}
@@ -14,16 +15,17 @@ h1{font:clamp(28px,6vw,44px)/1.05 Bungee,sans-serif;margin:0 0 4px}
 .tag{color:var(--mute);margin:0 0 12px;font-size:14px}
 .top{display:flex;justify-content:space-between;align-items:flex-start;gap:12px}
 #free{flex:none;min-height:36px;padding:4px 12px;font-size:13px;margin-top:4px}
+.hud{margin-bottom:16px}
 .status{display:flex;flex-wrap:wrap;gap:6px 16px;align-items:center;background:var(--asph);color:#fff;padding:12px 14px;border-radius:12px 12px 0 0}
 .status b{font:20px Bungee,sans-serif;white-space:nowrap}.cash{color:#7ff0b8}
 .stars{color:var(--pink);letter-spacing:2px;font-size:18px;white-space:nowrap}
 .status .ph{min-height:36px;padding:4px 12px;background:#ffffff1c;color:#fff;border-color:#fff3;margin-left:auto;font-size:14px}
 .status .ph.new{background:var(--pink);border-color:var(--pink)}
-.meters{display:grid;grid-template-columns:repeat(5,minmax(0,1fr));gap:10px;background:var(--asph);color:#fff;padding:0 14px 12px}
+.meters{display:grid;grid-template-columns:repeat(5,minmax(0,1fr));gap:10px;background:var(--asph);color:#fff;padding:0 14px 12px;border-radius:0 0 12px 12px}
 .m span{font-size:12.5px;display:flex;justify-content:space-between}
 .m .bar{height:7px;background:#ffffff22;border-radius:4px;overflow:hidden}.m i{display:block;height:100%;transition:width .4s}
 .main{display:grid;grid-template-columns:minmax(0,1.25fr) minmax(0,1fr);gap:16px}
-.mapbox{background:var(--asph);border-radius:0 0 12px 12px;padding:0 10px 10px}
+.mapbox{background:var(--asph);border-radius:12px;padding:10px;align-self:start}
 svg.map{width:100%;height:auto;display:block}
 .loc{cursor:pointer}.loc:focus-visible rect{stroke:#ffd27a;stroke-width:3}
 .loc text{font:10.5px Bungee,sans-serif;fill:#fff;pointer-events:none}
@@ -33,6 +35,8 @@ svg.map{width:100%;height:auto;display:block}
 .panel{background:var(--card);border-radius:12px;padding:16px;border:1px solid var(--line)}
 .panel h2{font:22px/1.1 Bungee,sans-serif;margin:0 0 6px}
 .panel .desc{color:var(--mute);font-size:14.5px;margin:0 0 8px}.panel .mood{color:var(--ink);font-style:italic;margin-bottom:12px}
+.last{background:light-dark(#0000000d,#ffffff12);border-left:4px solid var(--pink);border-radius:6px;padding:8px 10px;margin:0 0 12px;font-size:14px}
+.last time{color:var(--pink);font-weight:800;margin-right:6px;white-space:nowrap}
 .acts{display:grid;gap:8px}
 button{font:600 15px Archivo,sans-serif;min-height:44px;padding:8px 14px;border-radius:10px;border:1px solid var(--line);background:light-dark(#f1f0ec,#33353a);color:var(--ink);cursor:pointer;text-align:left;display:flex;justify-content:space-between;gap:10px;align-items:center}
 button small{font-weight:400;color:var(--mute);text-align:right}
@@ -67,6 +71,23 @@ button.hot{background:var(--pink);color:#fff;border-color:var(--pink)}button.hot
 #ndl{position:absolute;top:0;bottom:0;width:5px;background:#fff;left:12%;box-shadow:0 0 6px #000}
 #shift{justify-content:center;font:24px Bungee,sans-serif;min-height:72px;width:100%;margin-top:12px}
 .note{font-size:12.5px;color:var(--mute);margin:12px 0 0}
+.sheet input{display:block;width:100%;margin-top:10px;padding:12px;font:16px Archivo,system-ui,sans-serif;border-radius:10px;border:1px solid var(--line);background:light-dark(#fff,#1b1c1f);color:var(--ink);-webkit-user-select:text;user-select:text}
+.sheet input:focus-visible{outline:3px solid var(--pink);outline-offset:2px}
+.say{margin:0 0 8px}.say b{color:var(--pink);margin-right:6px}.say.me b{color:var(--mute)}
 @media(max-width:1000px){.lower{grid-template-columns:minmax(0,1fr) minmax(0,1fr)}}
-@media(max-width:820px){.main,.lower{grid-template-columns:minmax(0,1fr)}}
-@media(max-width:520px){.meters{grid-template-columns:repeat(3,minmax(0,1fr))}}
+.tabs{display:none}
+@media(max-width:820px){
+.main,.lower{grid-template-columns:minmax(0,1fr)}
+.lower{margin-top:0}
+.wrap{padding-bottom:calc(84px + env(safe-area-inset-bottom,0px))}
+.hud{position:sticky;top:0;z-index:5;margin:0 calc(-1*max(4vw,14px)) 12px;box-shadow:0 6px 14px #0005}
+.status,.meters{border-radius:0}
+.status{padding:10px max(4vw,14px) 8px;gap:4px 14px}.status b{font-size:18px}
+.meters{padding:0 max(4vw,14px) 10px;gap:8px}.m span{font-size:11px}
+.tabs{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:6px;position:fixed;left:0;right:0;bottom:0;z-index:6;background:var(--asph);padding:6px 8px calc(6px + env(safe-area-inset-bottom,0px));box-shadow:0 -6px 14px #0005}
+.tabs button{justify-content:center;min-height:48px;background:transparent;color:#fff;border-color:#fff2;font-size:14px}
+.tabs button[aria-pressed=true]{background:var(--pink);border-color:var(--pink)}
+.wrap:not([data-tab=city]) .pane-city,.wrap:not([data-tab=people]) .pane-people,.wrap:not([data-tab=you]) .pane-you,.wrap:not([data-tab=log]) .pane-log{display:none}
+.wrap:not([data-tab=city]) .top,.wrap:not([data-tab=city]) .tag{display:none}
+.log{max-height:none}
+}

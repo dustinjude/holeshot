@@ -201,7 +201,10 @@ function reset(){
   if(gmode==='drag'){dragReset(); return;}
   // moto 2 of a tour weekend lines up in the order moto 1 finished
   const order=gmode==='tour'&&tour.round%2===1&&Array.isArray(tour.m1)&&tour.m1.length===RACERS.length?tour.m1:null;
-  racePace=pace(); pl=gridUp(wd,sel.r,sel.c,racePace,playerMod(),rivalMod(),order); skis=wd.skis; ais=skis.filter(s=>!s.me);
+  racePace=pace();
+  if(gmode==='run'){const q=HX.run; wd.laps=q.laps||1; pl=runGrid(wd,sel.r,sel.c,playerMod(),q.cops,q.pace,garageMod(PARTS.map(()=>q.level|0),null,null)); runBegin();}
+  else pl=gridUp(wd,sel.r,sel.c,racePace,playerMod(),rivalMod(),order);
+  skis=wd.skis; ais=skis.filter(s=>!s.me);
   if(sel.paint>=0){pl.hull=PAINTS[sel.paint]; pl.trim=lum(pl.hull)>.6?COL.ink:'#fcfdfb';}
   for(const s of skis){s.wx=[];s.wy=[];s.wa=[];s.wnx=[];s.wny=[];s.wm=0;}
   LAPS=wd.laps; set(el.lapN,'/'+LAPS); set(el.posN,'/'+skis.length);
@@ -214,8 +217,9 @@ function reset(){
   hudLabels();
   if(isArc()) arcadeSetup(); else objs=[];
   if(gmode==='crates'){set(el.posN,'/'+arc.total); set(el.lapN,'');}
+  if(gmode==='run'){set(el.posN,''); set(el.lapN,'');}
 }
-function hudLabels(){const l=document.querySelectorAll('#hud .lbl'); l[0].textContent=gmode==='crates'?'Crates':'Pos'; l[1].textContent=gmode==='crates'?'Lives':'Lap';}
+function hudLabels(){const l=document.querySelectorAll('#hud .lbl'), rn=gmode==='run'; l[0].textContent=gmode==='crates'?'Crates':rn?'Law':'Pos'; l[1].textContent=gmode==='crates'?'Lives':rn?(HX.run.type==='chase'?'Patrols':'Load'):'Lap';}
 
 function pace(){return riv==='auto'?autoPace:LEVELS[+riv].pace;}
 function paceName(p){return p<.31?'Easy':p<.64?'Medium':p<.89?'Hard':'Pro';}
@@ -259,6 +263,7 @@ function tourScore(ris,out){
 // load the course for whatever is up next
 function stage(){
   if(gmode==='drag'){loadDrag(); return;}
+  if(gmode==='run'){loadSite(Math.max(0,SITES.findIndex(s=>s.id===HX.run.site)),!!HX.run.rev); return;}
   if(gmode==='tour'){
     if(tour.round>=MOTOS) tour=freshTour();
     if(tour.round===0){tour.r=sel.r; tour.c=sel.c;}
@@ -282,6 +287,7 @@ function startCountdown(){
   el.banT.textContent=what+site.name+(rev?' reverse':'')+' · '+lapsTxt(LAPS);
   el.banH.textContent=gmode==='items'?'Drive through item boxes, then tap the item button (or up arrow) to use it. Coins add top speed.':gmode==='crates'?'Smash the crates, hit the ramps, dodge the mines. Three lives.':hintText();
   if(gmode==='crates') el.banT.textContent=what+site.name;
+  if(gmode==='run'){el.banT.textContent=(HX.run.name||'Run')+' · '+site.name; el.banH.textContent=(HX.run.type==='chase'?'Get round the lap without letting them pin you. ':'Get the load round the lap. Every ram and every bad landing costs some of it. ')+'The gauge fills while a patrol ski is on you, fastest when you are slow.';}
   el.banner.hidden=false;
   audioInit();
 }
@@ -323,6 +329,7 @@ function statCells(cells){
 
 function finish(){
   if(gmode==='crates'){crateFinish(true); return;}
+  if(gmode==='run'){runFinish('made'); return;}
   mode='done'; finT=pl.fin; setLive(false);
   pl.ai=true; pl.skill=.8; pl.laneT=0;                        // the rider cruises on round while the results are up
   flash('Checkered flag','',1000);
@@ -691,7 +698,8 @@ function update(dt){
         landSeen=pl.lands; shake=Math.max(shake,Math.min(5,pl.land*.07)); blip(70,.1,'sine',Math.min(.22,pl.land*.004));
         if(pl.land>18&&pl.crook>.7){stat.rough++; flash('Rough landing','bad',700); buzz(18);}
       }
-      if(pl.fin!=null) finish();
+      if(gmode==='run'&&runTick(dt)){}
+      else if(pl.fin!=null) finish();
     }
     if(!G.on) spray(dt);
   }
@@ -723,6 +731,7 @@ function update(dt){
 
 function hud(dt){
   if(gmode==='drag'){dragHud(dt); return;}
+  if(gmode==='run'){runHud(); return;}
   if(gmode==='crates'){set(el.pos,String(arc?arc.got:0)); set(el.lap,String(arc?Math.max(0,arc.lives):3)); set(el.time,fmt(mode==='done'?finT:mode==='race'?wd.t:0)); set(el.mph,String(Math.round(pl.v*MPH))); set(el.gapA,''); set(el.gapB,''); return;}
   const racing=mode==='race', t=mode==='done'?finT:racing?wd.t:0;
   set(el.pos,String(racing||mode==='done'?place():1));
@@ -1016,6 +1025,7 @@ function frame(ts){
   if(G.on) render3(); else render();
   if(gmode==='drag'&&mode!=='idle') dragOverlay();
   if(isArc()&&mode!=='idle') arcadeOverlay();
+  if(gmode==='run'&&mode!=='idle') runOverlay();
   requestAnimationFrame(frame);
 }
 function key(e,d){
@@ -1089,6 +1099,7 @@ for(const r of RIV) $('rv'+r).addEventListener('click',()=>{
 });
 window.addEventListener('resize',resize);
 
+//@run
 //@bridge
 
 const pick=(k,n,dflt)=>{const v=parseInt(load(k),10); return v>=0&&v<n?v:dflt;};

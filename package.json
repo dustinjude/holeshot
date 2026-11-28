@@ -9,12 +9,18 @@
     "sim": "node tools/sim.mjs",
     "test": "node tests/smoke.mjs",
     "model": "node tools/prep-model.mjs",
-    "test:city": "node tests/city.mjs"
+    "test:city": "node tests/city.mjs",
+    "test:season": "node tests/season.mjs",
+    "test:talk": "node tests/talk.mjs"
   },
   "engines": {
     "node": ">=18"
   },
   "devDependencies": {
+    "@netlify/functions": "^6.1.2",
     "playwright": "1.64.1"
+  },
+  "dependencies": {
+    "@anthropic-ai/sdk": "^1.14.0"
   }
 }

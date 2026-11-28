@@ -16,7 +16,7 @@ const trim = s => s.replace(/\n+$/, '');
 // The game is one script in one strict-mode scope. core.js goes first; shell.js holds one marker line for each other
 // part, which is inserted there. Top-level consts are initialised in this order, so keep it.
 let shell = read(src('game/shell.js'));
-for (const k of ['draw', 'arcade', 'r3', 'party', 'bridge']) {
+for (const k of ['draw', 'arcade', 'r3', 'party', 'run', 'bridge']) {
   const mark = '//@' + k;
   if (shell.split(mark).length !== 2) throw new Error(`src/game/shell.js needs exactly one "${mark}" line`);
   shell = shell.replace(mark, () => trim(read(src(`game/${k}.js`))));
@@ -25,15 +25,22 @@ let game = "(()=>{'use strict';\n" + trim(read(src('game/core.js'))) + '\n' + tr
 if (TEST) {
   // hooks for tests only: read the state, let the player's ski drive itself, run the sim faster than real time
   const hooks = ";window.__hs={state:()=>({mode,gmode,site:site.id,place:place(),lap:pl.lap,laps:LAPS,quality:QUAL,dpr:DPR," +
-    "models:skis.filter(s=>s.model).map(s=>s.ri),gl:!!G.on,city:HX.on,cityOn:!!window.CITYON,kind:HX.kind,tour:tour.round,cash:gar.cash}),auto:()=>{pl.ai=true;pl.skill=.9;}," +
-    "run:sec=>{for(let i=0;i<sec*120&&!paused;i++)update(1/120);}};\n";
+    "models:skis.filter(s=>s.model).map(s=>s.ri),gl:!!G.on,city:HX.on,cityOn:!!window.CITYON,kind:HX.kind,tour:tour.round,cash:gar.cash,run:wd.run?{bust:wd.run.bust,cargo:wd.run.cargo,hits:wd.run.hits,cops:ais.length}:null}),auto:()=>{pl.ai=true;pl.skill=.9;}," +
+    "run:sec=>{for(let i=0;i<sec*120&&!paused;i++)update(1/120);},pay:n=>{gar.cash+=n;}};\n";
   game = game.replace(/\}\)\(\);\n$/, () => hooks + '})();\n');
 }
 new Function(game);   // parses only: a syntax error stops the build here instead of on a phone
 
 // Side Hustle City is a script of its own, so its names stay out of the game's scope. Its styles and markup go into a
 // <template> in the page, which the script copies into a shadow root.
-const city = trim(read(src('city/city.js'))) + '\n';
+let city = trim(read(src('city/city.js'))) + '\n';
+for (const k of ['street', 'talk']) {
+  const mark = '//@' + k;
+  if (city.split(mark).length !== 2) throw new Error(`src/city/city.js needs exactly one "${mark}" line`);
+  city = city.replace(mark, () => trim(read(src(`city/${k}.js`))));
+}
+if (city.split('/*@cast*/null').length !== 2) throw new Error('src/city/city.js needs exactly one /*@cast*/null');
+city = city.replace('/*@cast*/null', () => JSON.stringify(JSON.parse(read(src('city/cast.json')))));
 new Function(city);
 
 let html = read(src('index.html'));

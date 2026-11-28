@@ -55,10 +55,22 @@ try {
   console.log('The app opens in the city');
   let s = await hs(), c = await city();
   check(s.city && s.cityOn && !c.hidden, 'city is on screen and the race is idle');
-  check(/Day 1/.test(c.modal || ''), 'first-day note shows');
+  check(/Adults only/.test(c.modal || ''), 'it asks for 18 or older first');
+  await press('Just the racing'); s = await hs();
+  check(!s.city && (await city()).hidden, 'saying no leaves the racing, with the city put away');
+  await page.click('#toCity'); c = await city();
+  check(!c.hidden && /Adults only/.test(c.modal || ''), 'coming back asks again');
+  await press("I'm 18 or older"); c = await city();
+  check(/Day 1/.test(c.modal || ''), 'then the first-day note shows');
   check(c.cash === '$200', 'a new life starts with $200');
-  await page.screenshot({path: join(OUT, 'city.png')});
   await press("Let's go");
+  await page.screenshot({path: join(OUT, 'city.png')});
+  for (const k of ['people', 'you', 'log']) {
+    await page.evaluate(k => document.getElementById('city').shadowRoot.querySelector(`#tabs [data-tab="${k}"]`).click(), k);
+    check(await page.evaluate(k => { const r = document.getElementById('city').shadowRoot, v = e => !!e && e.offsetParent !== null; return v(r.querySelector('.pane-' + k)) && !v(r.querySelector('.pane-city')) && v(r.getElementById('clock')); }, k), 'the ' + k + ' tab shows its panel under the status strip');
+    if (k === 'people') await page.screenshot({path: join(OUT, 'city-people.png')});
+  }
+  await page.evaluate(() => document.getElementById('city').shadowRoot.querySelector('#tabs [data-tab="city"]').click());
   check(!(await city()).wide, 'the city does not scroll sideways at 440 wide');
 
   console.log('Free play and back');
@@ -70,8 +82,9 @@ try {
   check(s.city && s.cityOn && !(await city()).hidden, 'back in the city');
 
   console.log("Tommy's Garage");
-  await goTo('garage'); await press('Work on your ski'); s = await hs();
-  check(s.kind === 'garage' && !s.cityOn && s.cash === 200, 'the garage opens on the city wallet');
+  await goTo('garage'); c = await city(); await press('Work on your ski'); s = await hs();
+  // the walk there can turn up a street event that changes the money, so compare with what the city shows
+  check(s.kind === 'garage' && !s.cityOn && '$' + s.cash.toLocaleString('en-US') === c.cash, 'the garage opens on the city wallet: ' + c.cash);
   check(!(await page.isVisible('#go')) && !(await page.isVisible('#modes')), 'no start button and no mode tabs in the garage');
   check(await page.evaluate(() => /Tommy/.test(document.getElementById('startEyebrow').textContent) && !document.getElementById('garage').hidden), 'the plate is on the Garage tab');
   await page.screenshot({path: join(OUT, 'garage.png')});
@@ -158,6 +171,50 @@ try {
   await page.click('#toCity'); c = await city();
   check((await hs()).city && !c.hidden, 'and back in the city, with its own money: ' + c.cash);
 
+  console.log('A run from the law');
+  const setUp = patch => page.evaluate(p => { const s = JSON.parse(localStorage.getItem('shc')); Object.assign(s, p.top); for (const k in p.pp || {}) Object.assign(s.pp[k], p.pp[k]); localStorage.setItem('shc', JSON.stringify(s)); }, patch);
+  const fresh = async () => { await page.reload(); await page.waitForFunction(() => window.__hs && window.CITY); await closeModals(); };
+  await setUp({top: {day: 18, h: 20, en: 80, at: 'bar', heat: 45, over: 0}, pp: {dex: {met: 1, b: 40, t: 55, seen: 18}}}); await fresh();
+  await press('Back booth: Dex'); c = await city();
+  check(/Run a package/.test(await page.evaluate(() => document.getElementById('city').shadowRoot.getElementById('sheet').textContent)), 'Dex has a package to move');
+  await press('Run a package'); await press('Run it up the river'); s = await hs();
+  check(s.kind === 'run' && s.gmode === 'run' && s.mode === 'count' && s.run && s.run.cops === 2 && (await city()).hidden, 'the river run goes straight to the line, with two patrol skis at three stars: ' + JSON.stringify(s.run));
+  await run(4); await page.evaluate(() => window.__hs.auto());
+  for (let i = 0; i < 12; i++) await run(1);
+  await page.waitForTimeout(700); await page.screenshot({path: join(OUT, 'run.png')});
+  for (let i = 0; i < 300 && (await hs()).mode !== 'done'; i++) await run(1);
+  await run(3); s = await hs();
+  check(s.mode === 'done' && await again() === 'Back to the city', 'the run ends and leads back to the city: law ' + Math.round(s.run.bust) + '%, load ' + s.run.cargo + '%');
+  c = await city();
+  check(!c.hidden && /Delivered|County|In the river/.test(c.modal || ''), 'the city has the outcome: ' + (c.modal || '').slice(0, 100));
+  await closeModals();
+  await setUp({top: {day: 19, h: 20, en: 80, at: 'docks', heat: 70, over: 0}}); await fresh();
+  await page.evaluate(() => { const r = document.getElementById('city').shadowRoot; r.querySelector('[data-go="lake"]').dispatchEvent(new MouseEvent('click', {bubbles: true})); });
+  // a stop by the law can be answered on the water, when one happens
+  c = await city();
+  if (/Red and blue/.test(c.modal || '')) { await press('Run for the water'); s = await hs(); check(s.kind === 'run' && s.run.cops >= 3, 'a getaway from a stop starts a chase: ' + JSON.stringify(s.run)); await page.click('#pauseBtn').catch(() => {}); await page.evaluate(() => document.getElementById('toSetup').click()); c = await city(); check(!c.hidden, 'giving yourself up comes back to the city: ' + (c.modal || '').slice(0, 60)); }
+  await closeModals();
+
+  console.log('In your own words');
+  await page.route('**/api/talk', r => r.fulfill({json: {say: "Rough one. Sit down, I'll pour.", bond: 2, trust: 1, mood: 'up', note: 'Asked how her night was <b>'}}));
+  await setUp({top: {day: 20, h: 20, en: 80, at: 'bar', heat: 0, over: 0}, pp: {nia: {met: 1, b: 30, t: 50, seen: 20, mem: []}}}); await fresh();
+  const sheet = () => page.evaluate(() => document.getElementById('city').shadowRoot.getElementById('sheet').textContent);
+  const type = v => page.evaluate(v => { document.getElementById('city').shadowRoot.getElementById('say').value = v; }, v);
+  await press('Talk to Nia'); check(await press('Say something in your own words'), 'Nia can be spoken to in your own words');
+  await type('Rough night?'); await press('Say it');
+  await page.waitForFunction(() => /Sit down/.test(document.getElementById('city').shadowRoot.getElementById('sheet').textContent), null, {timeout: 5000});
+  check(/Rough night\?/.test(await sheet()) && /I'll pour/.test(await sheet()), 'her reply comes back under what you said');
+  let nia = await page.evaluate(() => JSON.parse(localStorage.getItem('shc')).pp.nia);
+  check(nia.mood === 'up' && nia.b > 30 && nia.mem[0] === 'Asked how her night was &lt;b&gt;', 'bond, mood and memory took it, with markup made safe: bond ' + nia.b + ', remembers "' + nia.mem[0] + '"');
+  await page.screenshot({path: join(OUT, 'talk.png')});
+  await press('Leave it there');
+  await page.unroute('**/api/talk'); await page.route('**/api/talk', r => r.fulfill({status: 503, json: {error: 'off'}}));
+  await press('Talk to Nia'); await press('Say something in your own words'); await type('Still there?'); await press('Say it');
+  await page.waitForFunction(() => /doesn't catch that/.test(document.getElementById('city').shadowRoot.getElementById('sheet').textContent), null, {timeout: 5000});
+  await press('OK'); await press('Talk to Nia');
+  check(!/in your own words/.test(await sheet()), 'with the function off the option goes away and the scripted choices remain');
+  await closeModals(); await page.unroute('**/api/talk');
+
   console.log('A smaller phone');
   await save({day: 17, h: 10, en: 80, at: 'garage'}); await page.setViewportSize({width: 390, height: 780});
   await page.reload(); await page.waitForFunction(() => window.__hs && window.CITY); await closeModals();
@@ -167,6 +224,9 @@ try {
   check(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth) && await page.isVisible('#toCity'), 'the pits fit at 390 wide, with the way back in view');
   await page.screenshot({path: join(OUT, 'garage-390.png')});
   await page.click('#toCity');
+  // after runs from the law, free play still lines up a full field with its own labels
+  await press('Free play'); await page.click('#modeS'); await page.click('#go'); await run(4); s = await hs();
+  check(s.gmode === 'single' && s.mode === 'race' && !s.run && await page.evaluate(() => document.querySelector('#hud .lbl').textContent === 'Pos' && document.getElementById('posN').textContent === '/10'), 'free play after a run: ten riders, position and lap on the strip');
 } finally {
   await browser.close();
   server.close();

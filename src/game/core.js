@@ -342,6 +342,49 @@ function gridUp(W,pr,pc,pace,pm,rm,order){
   return W.pl;
 }
 
+// ---------- runs from the law ----------
+// The player alone on the line with a load to carry, or just the law to lose. Patrol skis come off the bank behind at
+// intervals and hunt (see aiDrive). n: how many. pace: as for rivals. cm: the machine they ride.
+const PATROL={full:'Harbor Patrol',hull:'#16294d',trim:'#fcfdfb'};
+const CHASE_R=100, CHASE_FILL=11, CHASE_DRAIN=6, CHASE_HIT=11, CHASE_CARGO=6, CHASE_LOST=620, CHASE_TOUCH=42, CHASE_KNOCK=.82, CHASE_COOL=2.2, CHASE_BAND=.2;
+function runGrid(W,pr,pc,pm,n,pace,cm){
+  const lv=rivalSpec(pace), k=Math.min(1,(W.path[FRONT].w-38)/147);
+  W.skis=[]; W.t=0; W.go=false;
+  W.pl=makeSki(pr,pc,true,W.path[FRONT],0,0,FRONT,lv,pm); W.skis.push(W.pl);
+  for(let i=0;i<n;i++){
+    const ri=(pr+1+i)%RACERS.length, s=makeSki(ri,(ri*2+1)%CRAFTS.length,false,W.path[BACK],(i%2?56:-56)*k*(1+(i>>1)*.8),0,BACK,lv,cm);
+    Object.assign(s,PATROL,{name:'Patrol '+(i+1),num:i+1,hunt:true,cop:true,hit:0,hold:2.5+3.5*i,cool:0,push:.02+.06*pace,ease:.3,line:.3});
+    W.skis.push(s);
+  }
+  W.run={bust:0,cargo:100,near:0,dist:1e9,ah:0,sd:0,clear:0,hits:0,lands:W.pl.lands,last:2.5+3.5*Math.max(0,n-1)};
+  for(const t of W.turns) t.wob=0;
+  const first=Math.max(0,W.turns.findIndex(t=>t.idx>FRONT));
+  for(const s of W.skis) s.tn=first;
+  return W.pl;
+}
+// A chase is decided by a pressure gauge, W.run.bust. It fills while a patrol ski is right on the player, much faster the
+// slower the player is going; it jumps when one rams them; and it drains in clear water. Full, and they have you.
+// A ram or a crooked landing also knocks the cargo about. clear counts the seconds since the last patrol ski was in sight.
+function chaseStep(W,dt){
+  const R=W.run, P=W.pl; let near=0, d1=1e9;
+  for(const s of W.skis){
+    if(!s.cop) continue;
+    const d=Math.hypot(s.x-P.x,s.y-P.y);
+    // where the nearest one is from the saddle: ah ahead (negative is behind), sd to the right
+    if(d<d1){d1=d; const ch=Math.cos(P.h), sh=Math.sin(P.h); R.ah=(s.x-P.x)*ch+(s.y-P.y)*sh; R.sd=-(s.x-P.x)*sh+(s.y-P.y)*ch;}
+    if(d<CHASE_R&&s.hold<=0) near++;
+    // a patrol ski that gets hull to hull rams the player: it knocks speed off them and the load about, then drops back to come again
+    if(d<CHASE_TOUCH&&s.hold<=0&&s.cool<=0&&!s.hit){
+      s.hit=1; s.cool=CHASE_COOL; R.hits++; R.bust=Math.min(100,R.bust+CHASE_HIT); R.cargo=Math.max(0,R.cargo-CHASE_CARGO);
+      P.vx*=CHASE_KNOCK; P.vy*=CHASE_KNOCK; P.bump=Math.max(P.bump,.3);
+    }else if(d>70) s.hit=0;
+  }
+  if(P.lands!==R.lands){R.lands=P.lands; if(P.land>18&&P.crook>.7) R.cargo=Math.max(0,R.cargo-5);}
+  const slow=1-Math.min(1,P.v/(P.top*.8));
+  R.bust=clamp(R.bust+(near?CHASE_FILL*(1+.5*(near-1))*(.15+2.2*slow):-CHASE_DRAIN)*dt,0,100);
+  R.near=near; R.dist=d1; R.clear=d1>CHASE_LOST&&W.t>R.last+2?R.clear+dt:0;
+}
+
 // rough water at this ski: site chop and swell, less of it for a stable hull
 function roughAt(s,env){
   let r=0;
@@ -484,7 +527,7 @@ function aiDrive(s,W,dt){
   const ch=Math.cos(s.h), sh=Math.sin(s.h);
   let side=null, near=1e9;
   for(const o of W.skis){
-    if(o===s) continue;
+    if(o===s||(s.hunt&&o.me)) continue;
     const dx=o.x-s.x, dy=o.y-s.y, ah=dx*ch+dy*sh, sd=-dx*sh+dy*ch;
     if(ah>8&&ah<140&&Math.abs(sd)<38&&ah<near&&o.v<s.v+20){near=ah; side=sd;}
   }
@@ -493,10 +536,15 @@ function aiDrive(s,W,dt){
   // each rival has a line of its own across the lane, squeezed in where the lane narrows
   const look=4+Math.floor(s.v/22), t=path[(s.idx+look)%N], lm=Math.min(t.w,path[s.idx].w,path[(s.idx+look+8)%N].w)-62, tc=path[(s.idx+look+10)%N].c*s.line;
   s.laneNow+=(s.laneT*lm/(W.site.lane-62)*(1-.7*Math.abs(tc))+tc*lm*.8-s.laneNow)*Math.min(1,dt*(tc?1.8:.7));
-  const ln=clamp(s.laneNow+s.dodge,-lm,lm);
+  let ln=clamp(s.laneNow+s.dodge,-lm,lm);
+  // A patrol ski hunts: once it is near the player along the course it comes across the lane to where they are and sits on them.
+  const hg=s.hunt?(W.pl.lap*N+W.pl.idx)-(s.lap*N+s.idx):0;
+  if(s.hunt&&hg>-6&&hg<14) ln=clamp(W.pl.off,-lm-24,lm+24);
   const want=Math.atan2(t.y+t.tx*ln-s.y,t.x-t.ty*ln-s.x), tg=clamp(angDiff(want,s.h)*2.6,-1,1);
   s.steer+=clamp(tg-s.steer,-9*dt,9*dt);
   s.thr=planThr(s,path,N,s.idx,s.skill*(1+1.2*Math.max(0,s.band)));          // a rival chasing the player corners harder, as well as running a touch faster
+  // one that has got ahead waits for the player to come to it, and one alongside holds their speed
+  if(s.hunt){if(s.cool>0){s.cool-=dt; s.thr=Math.min(s.thr,.3);} else if(hg<-8) s.thr=Math.min(s.thr,.2);}
   // the odd lazy moment
   if(s.bobble>0){s.bobble-=dt; s.thr=Math.min(s.thr,.5);}
   else{
@@ -598,7 +646,9 @@ function simStep(W,dt){
       aiDrive(s,W,dt);
       // the pack closes up on the player: rivals behind push, and at the gentler levels rivals ahead ease a touch
       const gap=(pa-(s.lap*N+s.idx))/Math.min(N*.1,80);
-      s.band=gap>0?Math.min(1,gap)*s.push:Math.max(-1,gap)*s.ease;
+      // a patrol ski is spurred on over a much shorter distance than a rival, and held back hard once it is past the player
+      if(s.hunt){const g=pa-(s.lap*N+s.idx); s.band=s.cool>0||g<-2?-s.ease:g>3?s.push+(CHASE_BAND-s.push)*Math.min(1,(g-3)/7):s.push;}
+      else s.band=gap>0?Math.min(1,gap)*s.push:Math.max(-1,gap)*s.ease;
       if(s.fin!=null) s.thr=Math.min(s.thr,.35);
     }
     if(!go||s.hold>0){if(go) s.hold-=dt; s.thr=0; s.brk=0;}
