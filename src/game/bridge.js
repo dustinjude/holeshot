@@ -3,7 +3,7 @@
 // only through window.HS, below. While the city is on screen window.CITYON is true and nothing here runs or draws.
 // The city has a garage and a tour of its own, saved apart from free play (PKEY), and one wallet: in the city, gar.cash is the
 // city's money. HX holds what the city asked for when it opened the pits: prices, purse, small rider edges, and where to report.
-const HX={on:false,kind:'',disc:1,svc:1,purse:1,top:1,turn:1,shop:true,done:null,exit:null,won:0,wget:()=>0,wset:()=>{}};
+const HX={on:false,kind:'',disc:1,svc:1,purse:1,top:1,turn:1,shop:true,done:null,exit:null,won:0,run:null,wget:()=>0,wset:()=>{}};
 const PKEY=k=>HX.on?'city.'+k:k;
 const pcost=(p,l)=>Math.round(p.cost[l]*HX.disc/10)*10;
 // Marcus, the city's rival, only ever lines up on the drag strip, so nobody on the real roster gives up a place to him.
@@ -27,23 +27,27 @@ function cityOn(){
 function cityOff(){
   if(!HX.on) return;
   saveGar(); saveTour();
-  HX.on=false; Object.assign(HX,{kind:'',disc:1,svc:1,purse:1,top:1,turn:1,shop:true,done:null,exit:null,won:0});
+  HX.on=false; Object.assign(HX,{kind:'',disc:1,svc:1,purse:1,top:1,turn:1,shop:true,done:null,exit:null,won:0,run:null});
   gar=free.gar; tour=free.tour; sel.r=free.r; sel.c=free.c; sel.paint=free.paint; riv=free.riv; autoPace=free.autoPace; gmode=free.gmode; ladder=free.ladder; free=null;
   document.body.classList.remove('city'); document.body.classList.toggle('drag',gmode==='drag'); el.toSetup.textContent='Back to setup'; el.go.hidden=false;
   mode='idle'; paused=false; resAt=0; el.result.hidden=true; el.pause.hidden=true; el.start.hidden=false; setLive(false); hudLabels();
   window.CITYON=false; stage(); refreshSetup(); resize();
 }
-// the city opens the pits: c.mode is 'tour' (a race weekend), 'open' (one race), 'drag' (a run against Marcus) or 'garage' (no race)
+// the city opens the pits: c.mode is 'tour' (a race weekend), 'open' (one race), 'drag' (a run against Marcus), 'garage' (no race)
+// or 'run' (a load to carry or the law to lose, c.run as in run.js), which skips the pits and goes straight to the line
 function hsOpen(c){
   if(!HX.on) return;
-  Object.assign(HX,{kind:c.mode,disc:c.disc||1,svc:c.svc||1,purse:c.purse==null?1:c.purse,top:c.top||1,turn:c.turn||1,shop:c.mode==='garage',done:c.done||null,exit:c.exit||null,won:0});
-  gmode=c.mode==='tour'?'tour':c.mode==='drag'?'drag':'single';
+  Object.assign(HX,{kind:c.mode,disc:c.disc||1,svc:c.svc||1,purse:c.purse==null?1:c.purse,top:c.top||1,turn:c.turn||1,shop:c.mode==='garage',done:c.done||null,exit:c.exit||null,won:0,
+    run:c.mode==='run'?Object.assign({type:'drop',name:'Run',site:'river',rev:false,laps:1,cops:1,level:0,pace:.3},c.run):null});
+  gmode=c.mode==='tour'?'tour':c.mode==='drag'?'drag':c.mode==='run'?'run':'single';
+  el.toSetup.textContent=gmode==='run'?(HX.run.type==='chase'?'Give yourself up':'Dump the load and give up'):'Retire: counts as a DNF';
   hudLabels(); document.body.classList.toggle('drag',gmode==='drag');
   if(tourLive()){sel.r=tour.r; sel.c=tour.c;}
   if(gmode==='drag'){const o=(sel.r+1)%RACERS.length; ladder={round:clamp(c.level|0,0,2),opp:[o,o,o]};}
   tab=HX.shop?'g':tab==='g'?'c':tab;
   mode='idle'; paused=false; resAt=0; resAction=startCountdown; el.result.hidden=true; el.pause.hidden=true; el.start.hidden=false;
   window.CITYON=false; stage(); refreshSetup(); resize();
+  if(gmode==='run') startCountdown();
 }
 // back to the city, from the pits or from a result
 function hsExit(){
@@ -72,7 +76,8 @@ function hsSkip(){
 // Retiring from a started race. In a tour it ends the weekend; anywhere it is reported as a DNF.
 function hsRetire(){
   if(!HX.on||(mode!=='race'&&mode!=='count')) return;
-  if(gmode==='tour'){
+  if(gmode==='run'){runFinish('quit'); el.result.hidden=true;}
+  else if(gmode==='tour'){
     const o=ais.slice().sort((a,b)=>(b.lap*N+b.idx)-(a.lap*N+a.idx)).map(s=>s.ri);
     tourScore(o.concat(tour.r),tour.r);
     if(tour.round%2) hsSkip();

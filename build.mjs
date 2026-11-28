@@ -16,7 +16,7 @@ const trim = s => s.replace(/\n+$/, '');
 // The game is one script in one strict-mode scope. core.js goes first; shell.js holds one marker line for each other
 // part, which is inserted there. Top-level consts are initialised in this order, so keep it.
 let shell = read(src('game/shell.js'));
-for (const k of ['draw', 'arcade', 'r3', 'party', 'bridge']) {
+for (const k of ['draw', 'arcade', 'r3', 'party', 'run', 'bridge']) {
   const mark = '//@' + k;
   if (shell.split(mark).length !== 2) throw new Error(`src/game/shell.js needs exactly one "${mark}" line`);
   shell = shell.replace(mark, () => trim(read(src(`game/${k}.js`))));
@@ -25,7 +25,7 @@ let game = "(()=>{'use strict';\n" + trim(read(src('game/core.js'))) + '\n' + tr
 if (TEST) {
   // hooks for tests only: read the state, let the player's ski drive itself, run the sim faster than real time
   const hooks = ";window.__hs={state:()=>({mode,gmode,site:site.id,place:place(),lap:pl.lap,laps:LAPS,quality:QUAL,dpr:DPR," +
-    "models:skis.filter(s=>s.model).map(s=>s.ri),gl:!!G.on,city:HX.on,cityOn:!!window.CITYON,kind:HX.kind,tour:tour.round,cash:gar.cash}),auto:()=>{pl.ai=true;pl.skill=.9;}," +
+    "models:skis.filter(s=>s.model).map(s=>s.ri),gl:!!G.on,city:HX.on,cityOn:!!window.CITYON,kind:HX.kind,tour:tour.round,cash:gar.cash,run:wd.run?{bust:wd.run.bust,cargo:wd.run.cargo,hits:wd.run.hits,cops:ais.length}:null}),auto:()=>{pl.ai=true;pl.skill=.9;}," +
     "run:sec=>{for(let i=0;i<sec*120&&!paused;i++)update(1/120);}};\n";
   game = game.replace(/\}\)\(\);\n$/, () => hooks + '})();\n');
 }

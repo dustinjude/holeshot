@@ -755,6 +755,12 @@ function g3Skis(){
     for(const sd of [-1,1]){const pl8=new T3.Mesh(G.plGeo,pm); pl8.scale.set(4.6,2.9,1); pl8.position.set(geo.plate[0],geo.plate[1],sd*geo.plate[2]); pl8.rotation.set(sd*-.2,sd<0?Math.PI:0,0); g.add(pl8); s.hull3.push(pl8);}
     {const bk=new T3.Mesh(G.plGeo,pm); bk.scale.set(3.5,2.5,1); bk.setRotationFromMatrix(G.backM); bk.position.set(1.95-2.2*.762,2.65+2.2*.647,0); R.torso.add(bk); R.bk=bk;}
     s.parts=g.children.slice(); s.hullBox=new T3.Box3().setFromBufferAttribute(geo.body.attributes.position);
+    // a patrol ski carries a light bar ahead of the bars: a red lamp and a blue one, lit turn about (render3)
+    s.lights=null;
+    if(s.cop){
+      const lamp=(c,z)=>{const m=new T3.Mesh(new T3.BoxGeometry(1.3,.9,2.1),new T3.MeshBasicMaterial({color:c})); m.material.userData.own=true; m.position.set(bar[0]+2.4,bar[1]+1.3,z); g.add(m); return m;};
+      s.lights=[lamp(0xff2a2a,-1.1),lamp(0x2a6bff,1.1)];
+    }
     G.skiG.add(g); s.g3=g; s.gp=0; s.gr=0; s.gy=0; s.gl=s.lands; s.ge=0; s.skin=null; s.skinMesh=null; s.model=false;
   }
   G.ch=pl.h; G.sw=0; G.cy=0;
@@ -904,6 +910,7 @@ function render3(){
 
   // skis ride the surface they are drawn on
   for(const s of skis){
+    if(s.lights){const f=Math.floor(clock*7)%2; s.lights[0].material.color.setHex(f?0xff2a2a:0x5a1010); s.lights[1].material.color.setHex(f?0x10255a:0x2a6bff);}
     const c=Math.cos(s.h), sn=Math.sin(s.h), sq=Math.min(1,s.v/VMAX);
     const hf=g3H(s.x+c*13,s.y+sn*13), hb=g3H(s.x-c*13,s.y-sn*13), hr=g3H(s.x-sn*8,s.y+c*8), hl=g3H(s.x+sn*8,s.y-c*8);
     const hop=s.air>0?Math.max(0,s.z-s.hw):0, up=2.2*hop/(1+hop/30);

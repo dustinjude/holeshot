@@ -343,6 +343,47 @@ function gridUp(W,pr,pc,pace,pm,rm,order){
   return W.pl;
 }
 
+// ---------- runs from the law ----------
+// The player alone on the line with a load to carry, or just the law to lose. Patrol skis come off the bank behind at
+// intervals and hunt (see aiDrive). n: how many. pace: as for rivals. cm: the machine they ride.
+const PATROL={full:'Harbor Patrol',hull:'#16294d',trim:'#fcfdfb'};
+const CHASE_R=100, CHASE_FILL=11, CHASE_DRAIN=6, CHASE_HIT=11, CHASE_CARGO=6, CHASE_LOST=620, CHASE_TOUCH=42, CHASE_KNOCK=.82, CHASE_COOL=2.2, CHASE_BAND=.2;
+function runGrid(W,pr,pc,pm,n,pace,cm){
+  const lv=rivalSpec(pace), k=Math.min(1,(W.path[FRONT].w-38)/147);
+  W.skis=[]; W.t=0; W.go=false;
+  W.pl=makeSki(pr,pc,true,W.path[FRONT],0,0,FRONT,lv,pm); W.skis.push(W.pl);
+  for(let i=0;i<n;i++){
+    const ri=(pr+1+i)%RACERS.length, s=makeSki(ri,(ri*2+1)%CRAFTS.length,false,W.path[BACK],(i%2?56:-56)*k*(1+(i>>1)*.8),0,BACK,lv,cm);
+    Object.assign(s,PATROL,{name:'Patrol '+(i+1),num:i+1,hunt:true,cop:true,hit:0,hold:2.5+3.5*i,cool:0,push:.02+.06*pace,ease:.3,line:.3});
+    W.skis.push(s);
+  }
+  W.run={bust:0,cargo:100,near:0,dist:1e9,clear:0,hits:0,lands:W.pl.lands,last:2.5+3.5*Math.max(0,n-1)};
+  for(const t of W.turns) t.wob=0;
+  const first=Math.max(0,W.turns.findIndex(t=>t.idx>FRONT));
+  for(const s of W.skis) s.tn=first;
+  return W.pl;
+}
+// A chase is decided by a pressure gauge, W.run.bust. It fills while a patrol ski is right on the player, much faster the
+// slower the player is going; it jumps when one rams them; and it drains in clear water. Full, and they have you.
+// A ram or a crooked landing also knocks the cargo about. clear counts the seconds since the last patrol ski was in sight.
+function chaseStep(W,dt){
+  const R=W.run, P=W.pl; let near=0, d1=1e9;
+  for(const s of W.skis){
+    if(!s.cop) continue;
+    const d=Math.hypot(s.x-P.x,s.y-P.y); if(d<d1) d1=d;
+    if(d<CHASE_R&&s.hold<=0) near++;
+    // a patrol ski that gets hull to hull rams the player: it knocks speed off them and the load about, then drops back to come again
+    if(d<CHASE_TOUCH&&s.hold<=0&&s.cool<=0&&!s.hit){
+      s.hit=1; s.cool=CHASE_COOL; R.hits++; R.bust=Math.min(100,R.bust+CHASE_HIT); R.cargo=Math.max(0,R.cargo-CHASE_CARGO);
+      P.vx*=CHASE_KNOCK; P.vy*=CHASE_KNOCK; P.bump=Math.max(P.bump,.3);
+    }else if(d>70) s.hit=0;
+  }
+  if(P.lands!==R.lands){R.lands=P.lands; if(P.land>18&&P.crook>.7) R.cargo=Math.max(0,R.cargo-5);}
+  const slow=1-Math.min(1,P.v/(P.top*.8));
+  R.bust=clamp(R.bust+(near?CHASE_FILL*(1+.5*(near-1))*(.15+2.2*slow):-CHASE_DRAIN)*dt,0,100);
+  R.near=near; R.dist=d1; R.clear=d1>CHASE_LOST&&W.t>R.last+2?R.clear+dt:0;
+}
+
 // rough water at this ski: site chop and swell, less of it for a stable hull
 function roughAt(s,env){
   let r=0;
@@ -485,7 +526,7 @@ function aiDrive(s,W,dt){
   const ch=Math.cos(s.h), sh=Math.sin(s.h);
   let side=null, near=1e9;
   for(const o of W.skis){
-    if(o===s) continue;
+    if(o===s||(s.hunt&&o.me)) continue;
     const dx=o.x-s.x, dy=o.y-s.y, ah=dx*ch+dy*sh, sd=-dx*sh+dy*ch;
     if(ah>8&&ah<140&&Math.abs(sd)<38&&ah<near&&o.v<s.v+20){near=ah; side=sd;}
   }
@@ -494,10 +535,15 @@ function aiDrive(s,W,dt){
   // each rival has a line of its own across the lane, squeezed in where the lane narrows
   const look=4+Math.floor(s.v/22), t=path[(s.idx+look)%N], lm=Math.min(t.w,path[s.idx].w,path[(s.idx+look+8)%N].w)-62, tc=path[(s.idx+look+10)%N].c*s.line;
   s.laneNow+=(s.laneT*lm/(W.site.lane-62)*(1-.7*Math.abs(tc))+tc*lm*.8-s.laneNow)*Math.min(1,dt*(tc?1.8:.7));
-  const ln=clamp(s.laneNow+s.dodge,-lm,lm);
+  let ln=clamp(s.laneNow+s.dodge,-lm,lm);
+  // A patrol ski hunts: once it is near the player along the course it comes across the lane to where they are and sits on them.
+  const hg=s.hunt?(W.pl.lap*N+W.pl.idx)-(s.lap*N+s.idx):0;
+  if(s.hunt&&hg>-6&&hg<14) ln=clamp(W.pl.off,-lm-24,lm+24);
   const want=Math.atan2(t.y+t.tx*ln-s.y,t.x-t.ty*ln-s.x), tg=clamp(angDiff(want,s.h)*2.6,-1,1);
   s.steer+=clamp(tg-s.steer,-9*dt,9*dt);
   s.thr=planThr(s,path,N,s.idx,s.skill*(1+1.2*Math.max(0,s.band)));          // a rival chasing the player corners harder, as well as running a touch faster
+  // one that has got ahead waits for the player to come to it, and one alongside holds their speed
+  if(s.hunt){if(s.cool>0){s.cool-=dt; s.thr=Math.min(s.thr,.3);} else if(hg<-8) s.thr=Math.min(s.thr,.2);}
   // the odd lazy moment
   if(s.bobble>0){s.bobble-=dt; s.thr=Math.min(s.thr,.5);}
   else{
@@ -599,7 +645,9 @@ function simStep(W,dt){
       aiDrive(s,W,dt);
       // the pack closes up on the player: rivals behind push, and at the gentler levels rivals ahead ease a touch
       const gap=(pa-(s.lap*N+s.idx))/Math.min(N*.1,80);
-      s.band=gap>0?Math.min(1,gap)*s.push:Math.max(-1,gap)*s.ease;
+      // a patrol ski is spurred on over a much shorter distance than a rival, and held back hard once it is past the player
+      if(s.hunt){const g=pa-(s.lap*N+s.idx); s.band=s.cool>0||g<-2?-s.ease:g>3?s.push+(CHASE_BAND-s.push)*Math.min(1,(g-3)/7):s.push;}
+      else s.band=gap>0?Math.min(1,gap)*s.push:Math.max(-1,gap)*s.ease;
       if(s.fin!=null) s.thr=Math.min(s.thr,.35);
     }
     if(!go||s.hold>0){if(go) s.hold-=dt; s.thr=0; s.brk=0;}
@@ -897,7 +945,10 @@ function reset(){
   if(gmode==='drag'){dragReset(); return;}
   // moto 2 of a tour weekend lines up in the order moto 1 finished
   const order=gmode==='tour'&&tour.round%2===1&&Array.isArray(tour.m1)&&tour.m1.length===RACERS.length?tour.m1:null;
-  racePace=pace(); pl=gridUp(wd,sel.r,sel.c,racePace,playerMod(),rivalMod(),order); skis=wd.skis; ais=skis.filter(s=>!s.me);
+  racePace=pace();
+  if(gmode==='run'){const q=HX.run; wd.laps=q.laps||1; pl=runGrid(wd,sel.r,sel.c,playerMod(),q.cops,q.pace,garageMod(PARTS.map(()=>q.level|0),null,null)); runBegin();}
+  else pl=gridUp(wd,sel.r,sel.c,racePace,playerMod(),rivalMod(),order);
+  skis=wd.skis; ais=skis.filter(s=>!s.me);
   if(sel.paint>=0){pl.hull=PAINTS[sel.paint]; pl.trim=lum(pl.hull)>.6?COL.ink:'#fcfdfb';}
   for(const s of skis){s.wx=[];s.wy=[];s.wa=[];s.wnx=[];s.wny=[];s.wm=0;}
   LAPS=wd.laps; set(el.lapN,'/'+LAPS); set(el.posN,'/'+skis.length);
@@ -910,8 +961,9 @@ function reset(){
   hudLabels();
   if(isArc()) arcadeSetup(); else objs=[];
   if(gmode==='crates'){set(el.posN,'/'+arc.total); set(el.lapN,'');}
+  if(gmode==='run'){set(el.posN,''); set(el.lapN,'');}
 }
-function hudLabels(){const l=document.querySelectorAll('#hud .lbl'); l[0].textContent=gmode==='crates'?'Crates':'Pos'; l[1].textContent=gmode==='crates'?'Lives':'Lap';}
+function hudLabels(){const l=document.querySelectorAll('#hud .lbl'), rn=gmode==='run'; l[0].textContent=gmode==='crates'?'Crates':rn?'Law':'Pos'; l[1].textContent=gmode==='crates'?'Lives':rn?(HX.run.type==='chase'?'Patrols':'Load'):'Lap';}
 
 function pace(){return riv==='auto'?autoPace:LEVELS[+riv].pace;}
 function paceName(p){return p<.31?'Easy':p<.64?'Medium':p<.89?'Hard':'Pro';}
@@ -955,6 +1007,7 @@ function tourScore(ris,out){
 // load the course for whatever is up next
 function stage(){
   if(gmode==='drag'){loadDrag(); return;}
+  if(gmode==='run'){loadSite(Math.max(0,SITES.findIndex(s=>s.id===HX.run.site)),!!HX.run.rev); return;}
   if(gmode==='tour'){
     if(tour.round>=MOTOS) tour=freshTour();
     if(tour.round===0){tour.r=sel.r; tour.c=sel.c;}
@@ -978,6 +1031,7 @@ function startCountdown(){
   el.banT.textContent=what+site.name+(rev?' reverse':'')+' · '+lapsTxt(LAPS);
   el.banH.textContent=gmode==='items'?'Drive through item boxes, then tap the item button (or up arrow) to use it. Coins add top speed.':gmode==='crates'?'Smash the crates, hit the ramps, dodge the mines. Three lives.':hintText();
   if(gmode==='crates') el.banT.textContent=what+site.name;
+  if(gmode==='run'){el.banT.textContent=(HX.run.name||'Run')+' · '+site.name; el.banH.textContent=(HX.run.type==='chase'?'Get round the lap without letting them pin you. ':'Get the load round the lap. Every ram and every bad landing costs some of it. ')+'The gauge fills while a patrol ski is on you, fastest when you are slow.';}
   el.banner.hidden=false;
   audioInit();
 }
@@ -1019,6 +1073,7 @@ function statCells(cells){
 
 function finish(){
   if(gmode==='crates'){crateFinish(true); return;}
+  if(gmode==='run'){runFinish('made'); return;}
   mode='done'; finT=pl.fin; setLive(false);
   pl.ai=true; pl.skill=.8; pl.laneT=0;                        // the rider cruises on round while the results are up
   flash('Checkered flag','',1000);
@@ -1618,7 +1673,8 @@ function update(dt){
         landSeen=pl.lands; shake=Math.max(shake,Math.min(5,pl.land*.07)); blip(70,.1,'sine',Math.min(.22,pl.land*.004));
         if(pl.land>18&&pl.crook>.7){stat.rough++; flash('Rough landing','bad',700); buzz(18);}
       }
-      if(pl.fin!=null) finish();
+      if(gmode==='run'&&runTick(dt)){}
+      else if(pl.fin!=null) finish();
     }
     if(!G.on) spray(dt);
   }
@@ -1650,6 +1706,7 @@ function update(dt){
 
 function hud(dt){
   if(gmode==='drag'){dragHud(dt); return;}
+  if(gmode==='run'){runHud(); return;}
   if(gmode==='crates'){set(el.pos,String(arc?arc.got:0)); set(el.lap,String(arc?Math.max(0,arc.lives):3)); set(el.time,fmt(mode==='done'?finT:mode==='race'?wd.t:0)); set(el.mph,String(Math.round(pl.v*MPH))); set(el.gapA,''); set(el.gapB,''); return;}
   const racing=mode==='race', t=mode==='done'?finT:racing?wd.t:0;
   set(el.pos,String(racing||mode==='done'?place():1));
@@ -3098,6 +3155,12 @@ function g3Skis(){
     for(const sd of [-1,1]){const pl8=new T3.Mesh(G.plGeo,pm); pl8.scale.set(4.6,2.9,1); pl8.position.set(geo.plate[0],geo.plate[1],sd*geo.plate[2]); pl8.rotation.set(sd*-.2,sd<0?Math.PI:0,0); g.add(pl8); s.hull3.push(pl8);}
     {const bk=new T3.Mesh(G.plGeo,pm); bk.scale.set(3.5,2.5,1); bk.setRotationFromMatrix(G.backM); bk.position.set(1.95-2.2*.762,2.65+2.2*.647,0); R.torso.add(bk); R.bk=bk;}
     s.parts=g.children.slice(); s.hullBox=new T3.Box3().setFromBufferAttribute(geo.body.attributes.position);
+    // a patrol ski carries a light bar ahead of the bars: a red lamp and a blue one, lit turn about (render3)
+    s.lights=null;
+    if(s.cop){
+      const lamp=(c,z)=>{const m=new T3.Mesh(new T3.BoxGeometry(1.3,.9,2.1),new T3.MeshBasicMaterial({color:c})); m.material.userData.own=true; m.position.set(bar[0]+2.4,bar[1]+1.3,z); g.add(m); return m;};
+      s.lights=[lamp(0xff2a2a,-1.1),lamp(0x2a6bff,1.1)];
+    }
     G.skiG.add(g); s.g3=g; s.gp=0; s.gr=0; s.gy=0; s.gl=s.lands; s.ge=0; s.skin=null; s.skinMesh=null; s.model=false;
   }
   G.ch=pl.h; G.sw=0; G.cy=0;
@@ -3247,6 +3310,7 @@ function render3(){
 
   // skis ride the surface they are drawn on
   for(const s of skis){
+    if(s.lights){const f=Math.floor(clock*7)%2; s.lights[0].material.color.setHex(f?0xff2a2a:0x5a1010); s.lights[1].material.color.setHex(f?0x10255a:0x2a6bff);}
     const c=Math.cos(s.h), sn=Math.sin(s.h), sq=Math.min(1,s.v/VMAX);
     const hf=g3H(s.x+c*13,s.y+sn*13), hb=g3H(s.x-c*13,s.y-sn*13), hr=g3H(s.x-sn*8,s.y+c*8), hl=g3H(s.x+sn*8,s.y-c*8);
     const hop=s.air>0?Math.max(0,s.z-s.hw):0, up=2.2*hop/(1+hop/30);
@@ -4455,6 +4519,7 @@ function frame(ts){
   if(G.on) render3(); else render();
   if(gmode==='drag'&&mode!=='idle') dragOverlay();
   if(isArc()&&mode!=='idle') arcadeOverlay();
+  if(gmode==='run'&&mode!=='idle') runOverlay();
   requestAnimationFrame(frame);
 }
 function key(e,d){
@@ -4528,12 +4593,85 @@ for(const r of RIV) $('rv'+r).addEventListener('click',()=>{
 });
 window.addEventListener('resize',resize);
 
+// ---------- runs from the law ----------
+// A run is reached only from the city (HS.open with mode 'run'): a lap of a course with a load on the ski, or with nothing to
+// lose but the law, while patrol skis hunt the player. core.js decides it (runGrid, chaseStep); this is what the player
+// sees and hears, and what the city is told. HX.run is what the city asked for:
+// {type:'drop' or 'chase', name, site, rev, laps, cops, level (their parts, 0 to 3), pace}.
+let runSeen={hits:0,near:0,warn:0,sir:0,hi:false};
+function runBegin(){runSeen={hits:0,near:0,warn:0,sir:0,hi:false};}
+// One step of a run, after the sim has moved. True once it is over.
+function runTick(dt){
+  const R=wd.run, q=HX.run;
+  chaseStep(wd,dt);
+  if(R.hits!==runSeen.hits){runSeen.hits=R.hits; flash('Rammed','bad',650); buzz(30); shake=Math.max(shake,4); blip(110,.18,'sawtooth',.2);}
+  if(!!R.near!==!!runSeen.near){runSeen.near=R.near; if(R.near&&R.bust<45) flash('Patrol on you','bad',700);}
+  const w=R.bust>=75?2:R.bust>=45?1:0;
+  if(w>runSeen.warn) flash(w===2?'They nearly have you':'They are closing in','bad',900);
+  runSeen.warn=w;
+  // a two-tone siren, louder the closer the nearest patrol ski is
+  runSeen.sir-=dt;
+  if(R.dist<520&&runSeen.sir<=0){runSeen.sir=.36; runSeen.hi=!runSeen.hi; blip(runSeen.hi?740:560,.3,'triangle',.02+.07*(1-R.dist/520));}
+  if(R.bust>=100){runFinish('bust'); return true;}
+  if(q.type==='chase'&&R.clear>=6){runFinish('lost'); return true;}
+  return false;
+}
+// how: 'made' (the lap is done), 'lost' (nobody left in sight), 'bust' (they have you) or 'quit' (the rider gave it up)
+function runFinish(how){
+  const R=wd.run, q=HX.run, ok=how==='made'||how==='lost', drop=q.type!=='chase';
+  mode='done'; finT=wd.t; setLive(false);
+  for(const s of ais){s.hunt=false; s.laneT=0;}
+  if(ok){pl.ai=true; pl.skill=.8; pl.laneT=0;} else{pl.thr=0; pl.brk=1; pl.steer=0;}
+  flash(ok?(how==='lost'?'Lost them':drop?'Delivered':'Got away'):'Busted',ok?'':'bad',1200);
+  blip(ok?660:150,.5,'square',.12);
+  el.place.textContent=ok?(how==='lost'?'Clean away':drop?'Delivered':'Got away'):'Busted';
+  el.resEyebrow.textContent=(q.name||'Run')+' · '+site.name;
+  statCells([['Time',fmt(finT)],[drop?'Load intact':'Rammed',drop?Math.round(R.cargo)+'%':R.hits+(R.hits===1?' time':' times')],['Patrols',String(ais.length)],['Fastest',Math.round(stat.vmax*MPH)+' mph']]);
+  board([]);
+  // a run is hard on the ski: every ram and every rough landing tells
+  const gb=build(myCraft());
+  gb.w[0]=Math.max(0,gb.w[0]-(3+.2*stat.rough)); gb.w[1]=Math.max(0,gb.w[1]-(2+gb.p[3])); gb.w[2]=Math.max(0,gb.w[2]-(2+1.5*R.hits+stat.off));
+  saveGar();
+  el.sum.textContent=ok?(drop?(R.cargo>=95?'Not a mark on the load.':R.cargo>=60?'The load took some knocks. It will pay less.':'Most of the load is in the water.')
+      :(how==='lost'?'Nobody behind you. They will be looking for somebody else tonight.':'You made the slip with them still behind you. They saw the ski.'))
+    :'They have you, the ski and whatever was on it.';
+  el.again.textContent='Back to the city'; resAction=hsExit; el.swap.hidden=true; el.podBtn.hidden=true;
+  resAt=clock+1.1;
+  hsDone({kind:'run',ok,how,cargo:Math.round(R.cargo),hits:R.hits,t:finT,site:site.name});
+}
+function runHud(){
+  const R=wd.run, racing=mode==='race', t=mode==='done'?finT:racing?wd.t:0, drop=HX.run.type!=='chase';
+  set(el.pos,Math.round(R.bust)+'%'); set(el.lap,drop?Math.round(R.cargo)+'%':String(ais.length));
+  set(el.time,fmt(t)); set(el.mph,String(Math.round(pl.v*MPH)));
+  set(el.rpm,(Math.round(pl.rpm/50)*50).toLocaleString('en-US')+' rpm');
+  const f=clamp((pl.rpm-1200)/7700,0,1);
+  if(Math.abs(f-revShown)>.004){revShown=f; el.revFill.style.transform='scaleX('+(1-f).toFixed(3)+')';}
+  if(pl.flow!==flowShown){flowShown=pl.flow; for(let i=0;i<5;i++) el.flow.children[i+1].className=i<pl.flow?'on':'';}
+  set(el.gapA,racing?(R.dist<1e8?'▼ Patrol '+Math.max(0,Math.round((R.dist-34)/26))+' lengths':''):'');
+  set(el.gapB,racing?Math.max(0,Math.round((LAPS*N-(pl.lap*N+pl.idx))*DS/260))+' to go':'');
+}
+// the gauge that decides it, under the top strip: amber while it creeps, red and blue while a patrol ski is on the player
+function runOverlay(){
+  const R=wd.run; if(!R||mode==='done') return;
+  ctx.setTransform(DPR,0,0,DPR,0,0);
+  const w=Math.min(200,W-182), x=16, y=hudBottom+12, on=R.near>0, lit=Math.floor(clock*6)%2;
+  ctx.fillStyle='rgba(6,32,42,.6)'; ctx.fillRect(x-3,y-3,w+6,16);
+  ctx.fillStyle=on?(lit?'#e4392c':'#2f6fe4'):'#f1b53c'; ctx.fillRect(x,y,w*R.bust/100,10);
+  ctx.font="800 12px 'Barlow Condensed','Arial Narrow',sans-serif"; ctx.textAlign='left'; ctx.textBaseline='top';
+  ctx.fillStyle='#fff'; ctx.fillText(on?'PATROL ON YOU':'THE LAW',x,y+16);
+  if(on){
+    // the lights wash the edges of the screen
+    const g=ctx.createLinearGradient(0,0,W,0), a=lit?'228,57,44':'47,111,228', b=lit?'47,111,228':'228,57,44';
+    g.addColorStop(0,'rgba('+a+',.34)'); g.addColorStop(.16,'rgba('+a+',0)'); g.addColorStop(.84,'rgba('+b+',0)'); g.addColorStop(1,'rgba('+b+',.34)');
+    ctx.fillStyle=g; ctx.fillRect(0,0,W,H);
+  }
+}
 // ---------- Side Hustle City ----------
 // The main game is a life sim, Side Hustle City (src/city), laid over this page. It is a script of its own and reaches the racing
 // only through window.HS, below. While the city is on screen window.CITYON is true and nothing here runs or draws.
 // The city has a garage and a tour of its own, saved apart from free play (PKEY), and one wallet: in the city, gar.cash is the
 // city's money. HX holds what the city asked for when it opened the pits: prices, purse, small rider edges, and where to report.
-const HX={on:false,kind:'',disc:1,svc:1,purse:1,top:1,turn:1,shop:true,done:null,exit:null,won:0,wget:()=>0,wset:()=>{}};
+const HX={on:false,kind:'',disc:1,svc:1,purse:1,top:1,turn:1,shop:true,done:null,exit:null,won:0,run:null,wget:()=>0,wset:()=>{}};
 const PKEY=k=>HX.on?'city.'+k:k;
 const pcost=(p,l)=>Math.round(p.cost[l]*HX.disc/10)*10;
 // Marcus, the city's rival, only ever lines up on the drag strip, so nobody on the real roster gives up a place to him.
@@ -4557,23 +4695,27 @@ function cityOn(){
 function cityOff(){
   if(!HX.on) return;
   saveGar(); saveTour();
-  HX.on=false; Object.assign(HX,{kind:'',disc:1,svc:1,purse:1,top:1,turn:1,shop:true,done:null,exit:null,won:0});
+  HX.on=false; Object.assign(HX,{kind:'',disc:1,svc:1,purse:1,top:1,turn:1,shop:true,done:null,exit:null,won:0,run:null});
   gar=free.gar; tour=free.tour; sel.r=free.r; sel.c=free.c; sel.paint=free.paint; riv=free.riv; autoPace=free.autoPace; gmode=free.gmode; ladder=free.ladder; free=null;
   document.body.classList.remove('city'); document.body.classList.toggle('drag',gmode==='drag'); el.toSetup.textContent='Back to setup'; el.go.hidden=false;
   mode='idle'; paused=false; resAt=0; el.result.hidden=true; el.pause.hidden=true; el.start.hidden=false; setLive(false); hudLabels();
   window.CITYON=false; stage(); refreshSetup(); resize();
 }
-// the city opens the pits: c.mode is 'tour' (a race weekend), 'open' (one race), 'drag' (a run against Marcus) or 'garage' (no race)
+// the city opens the pits: c.mode is 'tour' (a race weekend), 'open' (one race), 'drag' (a run against Marcus), 'garage' (no race)
+// or 'run' (a load to carry or the law to lose, c.run as in run.js), which skips the pits and goes straight to the line
 function hsOpen(c){
   if(!HX.on) return;
-  Object.assign(HX,{kind:c.mode,disc:c.disc||1,svc:c.svc||1,purse:c.purse==null?1:c.purse,top:c.top||1,turn:c.turn||1,shop:c.mode==='garage',done:c.done||null,exit:c.exit||null,won:0});
-  gmode=c.mode==='tour'?'tour':c.mode==='drag'?'drag':'single';
+  Object.assign(HX,{kind:c.mode,disc:c.disc||1,svc:c.svc||1,purse:c.purse==null?1:c.purse,top:c.top||1,turn:c.turn||1,shop:c.mode==='garage',done:c.done||null,exit:c.exit||null,won:0,
+    run:c.mode==='run'?Object.assign({type:'drop',name:'Run',site:'river',rev:false,laps:1,cops:1,level:0,pace:.3},c.run):null});
+  gmode=c.mode==='tour'?'tour':c.mode==='drag'?'drag':c.mode==='run'?'run':'single';
+  el.toSetup.textContent=gmode==='run'?(HX.run.type==='chase'?'Give yourself up':'Dump the load and give up'):'Retire: counts as a DNF';
   hudLabels(); document.body.classList.toggle('drag',gmode==='drag');
   if(tourLive()){sel.r=tour.r; sel.c=tour.c;}
   if(gmode==='drag'){const o=(sel.r+1)%RACERS.length; ladder={round:clamp(c.level|0,0,2),opp:[o,o,o]};}
   tab=HX.shop?'g':tab==='g'?'c':tab;
   mode='idle'; paused=false; resAt=0; resAction=startCountdown; el.result.hidden=true; el.pause.hidden=true; el.start.hidden=false;
   window.CITYON=false; stage(); refreshSetup(); resize();
+  if(gmode==='run') startCountdown();
 }
 // back to the city, from the pits or from a result
 function hsExit(){
@@ -4602,7 +4744,8 @@ function hsSkip(){
 // Retiring from a started race. In a tour it ends the weekend; anywhere it is reported as a DNF.
 function hsRetire(){
   if(!HX.on||(mode!=='race'&&mode!=='count')) return;
-  if(gmode==='tour'){
+  if(gmode==='run'){runFinish('quit'); el.result.hidden=true;}
+  else if(gmode==='tour'){
     const o=ais.slice().sort((a,b)=>(b.lap*N+b.idx)-(a.lap*N+a.idx)).map(s=>s.ri);
     tourScore(o.concat(tour.r),tour.r);
     if(tour.round%2) hsSkip();
