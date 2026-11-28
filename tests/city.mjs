@@ -1,5 +1,6 @@
-// Plays Side Hustle City and its way into the racing in a phone-sized headless Chrome: the city on load, free play and back,
-// the garage, an open race, a drag run against Marcus, a whole race weekend, a retirement and a missed weekend.
+// Plays Side Hustle City and its way into the racing in a phone-sized headless Chrome: the city on load and its five tabs,
+// free play and back, the garage, an open race, a drag run against Marcus, a whole race weekend, a retirement, a missed
+// weekend, a run from the law, talking in your own words, the phone, the hustles, and the morning recap.
 // Time is driven with the test hooks, so it does not depend on the frame rate. Screenshots go to tests/out/.
 //   npm install && npx playwright install chromium   (once)        npm run test:city
 import {chromium} from 'playwright';
@@ -39,6 +40,9 @@ try {
     if (b) b.click(); return !!b;
   }, text);
   const closeModals = async () => { for (let i = 0; i < 6 && (await city()).modal; i++) await page.evaluate(() => { const b = [...document.getElementById('city').shadowRoot.querySelectorAll('[data-ch]:not([disabled])')]; b[b.length - 1].click(); }); };
+  // talk to whoever is here, by tapping their face
+  const who = k => page.evaluate(k => { const b = document.getElementById('city').shadowRoot.querySelector(`[data-who="${k}"]`); if (b) b.click(); return !!b; }, k);
+  const tabTo = k => page.evaluate(k => document.getElementById('city').shadowRoot.querySelector(`#tabs [data-tab="${k}"]`).click(), k);
   const goTo = async key => { await page.evaluate(k => document.getElementById('city').shadowRoot.querySelector(`[data-go="${k}"]`).dispatchEvent(new MouseEvent('click', {bubbles: true})), key); await closeModals(); };
   const save = patch => page.evaluate(p => { const s = JSON.parse(localStorage.getItem('shc')); Object.assign(s, p); localStorage.setItem('shc', JSON.stringify(s)); }, patch);
   const run = sec => page.evaluate(s => window.__hs.run(s), sec);
@@ -64,13 +68,17 @@ try {
   check(/Day 1/.test(c.modal || ''), 'then the first-day note shows');
   check(c.cash === '$200', 'a new life starts with $200');
   await press("Let's go");
+  check(/What are you here for/.test((await city()).modal || ''), 'then it asks what you came here to do');
+  await press('Champion');
+  check(await page.evaluate(() => JSON.parse(localStorage.getItem('shc')).asp) === 'champ' && !(await city()).modal, 'the aim is set and the city is clear');
   await page.screenshot({path: join(OUT, 'city.png')});
-  for (const k of ['people', 'you', 'log']) {
-    await page.evaluate(k => document.getElementById('city').shadowRoot.querySelector(`#tabs [data-tab="${k}"]`).click(), k);
-    check(await page.evaluate(k => { const r = document.getElementById('city').shadowRoot, v = e => !!e && e.offsetParent !== null; return v(r.querySelector('.pane-' + k)) && !v(r.querySelector('.pane-city')) && v(r.getElementById('clock')); }, k), 'the ' + k + ' tab shows its panel under the status strip');
-    if (k === 'people') await page.screenshot({path: join(OUT, 'city-people.png')});
+  check(await page.evaluate(() => { const r = document.getElementById('city').shadowRoot, b = r.querySelector('[data-a]').getBoundingClientRect(); return b.bottom < innerHeight - 70; }), 'the first thing to do is on screen without scrolling');
+  for (const k of ['map', 'hustle', 'people', 'you']) {
+    await tabTo(k);
+    check(await page.evaluate(k => { const r = document.getElementById('city').shadowRoot, v = e => !!e && e.offsetParent !== null; return v(r.querySelector('.pane-' + k)) && !v(r.querySelector('.pane-here')) && v(r.getElementById('clock')); }, k), 'the ' + k + ' tab shows its panel under the top bar');
+    await page.screenshot({path: join(OUT, 'city-' + k + '.png')});
   }
-  await page.evaluate(() => document.getElementById('city').shadowRoot.querySelector('#tabs [data-tab="city"]').click());
+  await tabTo('here');
   check(!(await city()).wide, 'the city does not scroll sideways at 440 wide');
 
   console.log('Free play and back');
@@ -175,7 +183,8 @@ try {
   const setUp = patch => page.evaluate(p => { const s = JSON.parse(localStorage.getItem('shc')); Object.assign(s, p.top); for (const k in p.pp || {}) Object.assign(s.pp[k], p.pp[k]); localStorage.setItem('shc', JSON.stringify(s)); }, patch);
   const fresh = async () => { await page.reload(); await page.waitForFunction(() => window.__hs && window.CITY); await closeModals(); };
   await setUp({top: {day: 18, h: 20, en: 80, at: 'bar', heat: 45, over: 0}, pp: {dex: {met: 1, b: 40, t: 55, seen: 18}}}); await fresh();
-  await press('Back booth: Dex'); c = await city();
+  check(await page.evaluate(() => !!document.getElementById('city').shadowRoot.querySelector('[data-who="dex"]')) && !(await page.evaluate(() => !!document.getElementById('city').shadowRoot.querySelector('[data-who="rosa"]'))), 'at the Low End at 8pm Dex is in the booth and Rosa is not');
+  await who('dex'); c = await city();
   check(/Run a package/.test(await page.evaluate(() => document.getElementById('city').shadowRoot.getElementById('sheet').textContent)), 'Dex has a package to move');
   await press('Run a package'); await press('Run it up the river'); s = await hs();
   check(s.kind === 'run' && s.gmode === 'run' && s.mode === 'count' && s.run && s.run.cops === 2 && (await city()).hidden, 'the river run goes straight to the line, with two patrol skis at three stars: ' + JSON.stringify(s.run));
@@ -200,7 +209,8 @@ try {
   await setUp({top: {day: 20, h: 20, en: 80, at: 'bar', heat: 0, over: 0}, pp: {nia: {met: 1, b: 30, t: 50, seen: 20, mem: []}}}); await fresh();
   const sheet = () => page.evaluate(() => document.getElementById('city').shadowRoot.getElementById('sheet').textContent);
   const type = v => page.evaluate(v => { document.getElementById('city').shadowRoot.getElementById('say').value = v; }, v);
-  await press('Talk to Nia'); check(await press('Say something in your own words'), 'Nia can be spoken to in your own words');
+  await who('nia'); check(/Nia/.test((await city()).modal || '') && await page.evaluate(() => !!document.getElementById('city').shadowRoot.querySelector('#sheet .who .fc')), 'tapping Nia opens a conversation with her face on it');
+  check(await press('Say something in your own words'), 'Nia can be spoken to in your own words');
   await type('Rough night?'); await press('Say it');
   await page.waitForFunction(() => /Sit down/.test(document.getElementById('city').shadowRoot.getElementById('sheet').textContent), null, {timeout: 5000});
   check(/Rough night\?/.test(await sheet()) && /I'll pour/.test(await sheet()), 'her reply comes back under what you said');
@@ -209,11 +219,50 @@ try {
   await page.screenshot({path: join(OUT, 'talk.png')});
   await press('Leave it there');
   await page.unroute('**/api/talk'); await page.route('**/api/talk', r => r.fulfill({status: 503, json: {error: 'off'}}));
-  await press('Talk to Nia'); await press('Say something in your own words'); await type('Still there?'); await press('Say it');
+  await who('nia'); await press('Say something in your own words'); await type('Still there?'); await press('Say it');
   await page.waitForFunction(() => /doesn't catch that/.test(document.getElementById('city').shadowRoot.getElementById('sheet').textContent), null, {timeout: 5000});
-  await press('OK'); await press('Talk to Nia');
+  await press('OK'); await who('nia');
   check(!/in your own words/.test(await sheet()), 'with the function off the option goes away and the scripted choices remain');
   await closeModals(); await page.unroute('**/api/talk');
+
+  console.log('The phone, the hustles, the recap');
+  await setUp({top: {day: 21, h: 14, en: 80, at: 'garage', heat: 10, over: 0, cash: 900, inbox: [{id: 'rosa_cover', day: 21}], sk: {drive: 3, wrench: 6, charm: 0, fight: 0}, cl: {f: 1200, clip: {kind: 'race', q: 4, t: 'Round 4 at Bayou: 2nd', h: 0, day: 21}, spon: {}, warn: {}, stunt: -9, last: 19, posts: 2, best: 1200}}, pp: {tommy: {met: 1, b: 40, t: 60, seen: 21}, rosa: {met: 1, b: 30, t: 55, seen: 21}}}); await fresh();
+  await page.click('#city >> css=#phone').catch(() => page.evaluate(() => document.getElementById('city').shadowRoot.getElementById('phone').click()));
+  check(await page.evaluate(() => !document.getElementById('city').shadowRoot.getElementById('phoneui').hidden), 'the phone opens');
+  await page.evaluate(() => document.getElementById('city').shadowRoot.querySelector('[data-app="msgs"]').click());
+  check(await page.evaluate(() => /Cook walked out/.test(document.getElementById('city').shadowRoot.getElementById('pscreen').textContent)), 'Messages has Rosa\'s text');
+  await page.screenshot({path: join(OUT, 'phone.png')});
+  await page.evaluate(() => document.getElementById('city').shadowRoot.querySelector('[data-ask]').click());
+  check(/Text from Rosa/.test((await city()).modal || ''), 'tapping it opens the text to answer');
+  await press("Can't. Sorry."); await page.evaluate(() => document.getElementById('city').shadowRoot.querySelector('[data-pclose]').click());
+  await tabTo('hustle');
+  let f0 = await page.evaluate(() => JSON.parse(localStorage.getItem('shc')).cl.f);
+  check(await press('Post it'), 'Hustles offers the clip to post');
+  let cl1 = await page.evaluate(() => JSON.parse(localStorage.getItem('shc')).cl);
+  check(cl1.f > f0 && !cl1.clip && await page.evaluate(() => [...document.getElementById('city').shadowRoot.querySelectorAll('.toast')].some(t => /followers/.test(t.textContent))), 'posting it brings followers, with a pop-up: ' + f0 + ' to ' + cl1.f);
+  check(await press('Sign'), 'past a thousand followers a sponsor will sign you');
+  await tabTo('here');
+  check((await city()).acts.some(a => /Take a tuning job/.test(a) && !/\(x\)/.test(a)), 'Tommy has tuning work once you can turn a wrench');
+  await press('Take a tuning job'); check(/Tuning job/.test((await city()).modal || ''), 'a customer brings a ski'); await press('Mild map');
+  check((await city()).log.some(l => /idles like a sewing machine/.test(l)), 'a mild map is safe money');
+  await tabTo('hustle'); let c0 = (await city()).cash; await press('Start a shift'); await closeModals();
+  check((await page.evaluate(() => JSON.parse(localStorage.getItem('shc')).gig.runs)) > 0, 'a Runner shift does deliveries: ' + c0 + ' to ' + (await city()).cash);
+  await tabTo('you');
+  check(await page.evaluate(() => /Champion/.test(document.getElementById('city').shadowRoot.querySelector('.aim').textContent)), 'You shows the aim and how close you are');
+  await setUp({top: {hap: {id: 'party', day: 21}, h: 17, at: 'court'}, pp: {marcus: {met: 1, b: 30, t: 50, seen: 21}}}); await fresh();
+  c = await city();
+  check(c.acts.some(a => /Hit the block party/.test(a)) && await page.evaluate(() => !!document.getElementById('city').shadowRoot.querySelector('[data-who="marcus"]')), 'a block party at the court, with Marcus at it');
+  await press('Hit the block party'); await closeModals();
+  check((await city()).log.some(l => /dance-off/.test(l)), 'the party happens');
+  // the walk home after dark and the night itself roll for street events and stops; this step is about the recap, so the
+  // dice are held still for it
+  await page.evaluate(() => { Math.realRandom = Math.random; Math.random = () => .99; });
+  await tabTo('here'); await goTo('home'); await press('Sleep');
+  await page.evaluate(() => { Math.random = Math.realRandom; });
+  c = await city(); for (let i = 0; i < 6 && c.modal && !/^Day \d+/.test(c.modal); i++) { await page.evaluate(() => { const b = [...document.getElementById('city').shadowRoot.querySelectorAll('[data-ch]:not([disabled])')]; b[b.length - 1].click(); }); c = await city(); }
+  check(/^Day \d+/.test(c.modal || '') && /Money/.test(c.modal), 'waking up brings the recap: ' + (c.modal || '').slice(0, 80));
+  await page.screenshot({path: join(OUT, 'recap.png')});
+  await closeModals();
 
   console.log('A smaller phone');
   await save({day: 17, h: 10, en: 80, at: 'garage'}); await page.setViewportSize({width: 390, height: 780});

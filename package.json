@@ -11,16 +11,19 @@
     "model": "node tools/prep-model.mjs",
     "test:city": "node tests/city.mjs",
     "test:season": "node tests/season.mjs",
-    "test:talk": "node tests/talk.mjs"
+    "test:talk": "node tests/talk.mjs",
+    "test:art": "node tests/art.mjs",
+    "test:photo": "node tests/photo.mjs"
   },
   "engines": {
-    "node": ">=18"
+    "node": ">=22"
   },
   "devDependencies": {
     "@netlify/functions": "^6.1.2",
     "playwright": "1.64.1"
   },
   "dependencies": {
-    "@anthropic-ai/sdk": "^1.14.0"
+    "@anthropic-ai/sdk": "^1.14.0",
+    "@netlify/blobs": "^11.1.12"
   }
 }

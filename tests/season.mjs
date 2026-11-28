@@ -60,7 +60,8 @@ try {
         if (!ch.length) { out.stuck = 'modal with no way out: ' + h; break; }
         click(pickOf(ch)); idle = 0; continue;
       }
-      const acts = [...R.querySelectorAll('[data-a]')].filter(b => !b.disabled), by = t => acts.find(b => b.textContent.includes(t));
+      // what can be tapped: the place's actions, the faces of whoever is here, and the hustle buttons (post, sign, a delivery shift)
+      const acts = [...R.querySelectorAll('[data-a],[data-who],[data-x]')].filter(b => !b.disabled), by = t => acts.find(b => b.dataset.a && b.textContent.includes(t));
       const go = k => click(R.querySelector('[data-go="' + k + '"]'));
       let b = null;
       if (sane) {
@@ -77,7 +78,7 @@ try {
       seen.acts.add(b.textContent.replace(/[\d$,.]+/g, '#').slice(0, 40)); idle = 0; click(b);
     }
     const f = out.final || S();
-    out.days = f.day; out.sum = {cash: f.cash, heat: f.heat, rep: f.rep, v: f.z.v, pad: f.z.pad, dexDead: f.z.dexDead, gar: f.gar, friends: Object.values(f.pp).filter(p => p.met && p.t >= 20 && p.b >= 35).length};
+    out.days = f.day; out.sum = {cash: f.cash, heat: f.heat, rep: f.rep, v: f.z.v, pad: f.z.pad, dexDead: f.z.dexDead, gar: f.gar, friends: Object.values(f.pp).filter(p => p.met && p.t >= 20 && p.b >= 35).length, fol: f.cl.f, spon: Object.keys(f.cl.spon).length, gigs: f.gig.runs, tunes: f.tn.jobs};
     delete out.final;
     out.acts = [...seen.acts]; out.modals = [...seen.modals]; out.runs = runs;
     HS.open = open0; Math.random = real;
@@ -99,7 +100,7 @@ try {
     await page.reload(); await page.waitForFunction(() => window.__hs && window.CITY);
   };
   for (const [name, sane, skill, street] of [['random', false, .5], ['sane, average rider', true, .4], ['sane, good rider', true, .8], ['street', false, .6, true]]) {
-    const ends = {}, cash = [], heat = [], vs = {}, at = {};
+    const ends = {}, cash = [], heat = [], vs = {}, at = {}, fol = [], hu = {spon: 0, gigs: 0, tunes: 0};
     let runs = 0, runsOk = 0, stuck = 0;
     for (let i = 0; i < SEASONS; i++) {
       if (street) await deep(i);
@@ -108,12 +109,12 @@ try {
       if (o.stuck) { stuck++; fail.push(name + ' seed ' + i + ': ' + o.stuck); }
       if (!o.end) fail.push(name + ' seed ' + i + ': did not finish in ' + o.steps + ' steps (day ' + o.days + ')');
       if (o.end === 'season') { cash.push(o.sum.cash); heat.push(o.sum.heat); }
-      vs[o.sum.v] = (vs[o.sum.v] || 0) + 1; runs += o.runs.n; runsOk += o.runs.ok;
+      vs[o.sum.v] = (vs[o.sum.v] || 0) + 1; runs += o.runs.n; runsOk += o.runs.ok; fol.push(o.sum.fol); hu.spon += o.sum.spon; hu.gigs += o.sum.gigs; hu.tunes += o.sum.tunes;
       for (const d in o.cashAt) (at[d] = at[d] || []).push(o.cashAt[d]);
       o.acts.forEach(a => acts.add(a)); o.modals.forEach(m => modals.add(m));
     }
     const med = l => l.length ? l.slice().sort((a, b) => a - b)[Math.floor(l.length / 2)] : '-';
-    console.log(`${name}: ${SEASONS} seasons | endings ${JSON.stringify(ends)} | median cash at the end $${med(cash)}, heat ${med(heat)} | cash by day ${Object.keys(at).map(d => d + ':$' + med(at[d])).join(' ')} | Vance ${JSON.stringify(vs)} | water runs ${runs} (${runsOk} ok)`);
+    console.log(`${name}: ${SEASONS} seasons | endings ${JSON.stringify(ends)} | median cash at the end $${med(cash)}, heat ${med(heat)} | cash by day ${Object.keys(at).map(d => d + ':$' + med(at[d])).join(' ')} | Vance ${JSON.stringify(vs)} | water runs ${runs} (${runsOk} ok) | followers median ${med(fol)}, sponsors ${hu.spon}, deliveries ${hu.gigs}, tuning jobs ${hu.tunes}`);
   }
   console.log(`${acts.size} different actions pressed, ${modals.size} different dialogs seen`);
   if (process.argv.includes('--list')) console.log([...modals].sort().join(' | '));

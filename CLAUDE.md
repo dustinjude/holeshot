@@ -23,6 +23,10 @@ checked and what you couldn't check.
 - `npm run test:season`: bots play whole seasons of the city (racing stubbed) and report crashes, dead ends, and how the money
   and the heat ran. `node tests/season.mjs 40 --list` plays more and lists every dialog seen.
 - `npm run test:talk`: checks the function that writes the characters' live lines, without the network.
+- `npm run test:art`: checks the photographs on the server side without Netlify or the network: the list of pictures and what
+  their prompts must and must not say, made-once-and-kept, the lock, giving up after failures, and the call to the image model.
+- `npm run test:photo`: plays the city with photographs in headless Chrome against a stand-in server with placeholder
+  pictures: which picture each place, hour and mood shows, the fallbacks, the Photos/Drawn switch, the offline cache.
 - `node tools/chase.mjs [site]`: runs from the law in Node, for tuning the `CHASE_` constants in core.js.
 - `npm run model -- <file.glb> <name>`: shrink a 3D model into `models/<name>/` (see Models).
 
@@ -51,11 +55,16 @@ checked and what you couldn't check.
   - `bridge.js`: everything the city needs from the racing, as `window.HS`, and the switch between the city's garage and
     tour and free play's (`cityOn`, `cityOff`, `PKEY`). See Side Hustle City below.
 - `src/city/`: Side Hustle City. `city.js` is one closure of its own, built to `dist/js/city.js` and loaded after the
-  game. **Do not join it into the game's scope**: it has its own `stage`, `reset`, `render`, `tick`, `log`, `S`, `P`, `L`.
+  game. `build.mjs` joins `art.js`, `photo.js`, `ui.js`, `hustle.js`, `life.js`, `street.js` and `talk.js` into it at their `//@name`
+  lines, and `cast.json` at `/*@cast*/`, so they all share its scope. **Do not join it into the game's scope**: it has its own `stage`, `reset`, `render`, `tick`, `log`, `S`, `P`, `L`.
   `city.css` and `city.html` are put into a `<template id="cityT">` in the page (`/*@citycss*/`, `<!--@city-->`), which
   the script copies into a shadow root on `<div id="city">`, so the city's styles and the race's cannot meet.
+- `netlify/functions/`: `talk.mts` (live lines), `art.mts` (serves the photographs) and `artmake.mts` (makes them, in the
+  background). `netlify/lib/art.mts` is shared by the last two and is not a function: the list of pictures, their prompts, and
+  the making and keeping. Functions need Node 22 (`NODE_VERSION` in netlify.toml), because `@netlify/blobs` does.
 - `src/index.html` (markup, `/*@css*/` placeholder), `src/style.css`, `src/sw.js` (offline cache; the build fills
-  in its file list and a version hash, so never bump it by hand), `src/manifest.webmanifest`, `src/icons/`.
+  in its file list and a version hash, so never bump it by hand; photographs go in a cache of their own that outlives
+  builds), `src/manifest.webmanifest`, `src/icons/`.
 - `vendor/`: three.js r128 and its r128 `GLTFLoader` (non-module, `THREE.GLTFLoader`). Pinned on purpose: the code
   relies on r128 APIs (`texture.encoding`, linear output). Don't upgrade casually.
 - `models/`: racers' models as the game loads them. `models-source/`: the original files they came from.
@@ -93,6 +102,35 @@ none of them is a character in the city.
 - `tourScore(order, out)` in shell.js books one moto; `finish()`, `hsSkip` and `hsRetire` all go through it.
 - Free play (Race, Tour, Drag ladder, Items, Crates) is the "Free play" button at the top of the city, and "Back to
   the city" on the setup plate returns. Check after any change to shell.js that free play behaves as it did.
+- **The screen** (rebuilt for phones in the second pass): a top bar that stays put (clock, cash, wanted stars, the phone,
+  five meters) and five tabs at the foot. **Here** (`hereView` in ui.js): a lit picture of the place (`scene` in art.js),
+  the faces of whoever is there (tap one to talk: `talkTo`), the newest log line, the most pressing thing elsewhere, and
+  the place's actions. **Map** (`mapView`, `mapBase`): the city by the hour, faces where people are, a marker where something
+  is waiting, a patrol car after dark at two stars and a boat at three; tapping a place walks the marker there (`travel`)
+  and switches to Here. **Hustles** (`hustleView` in hustle.js): every way to make money. **People** (`peopleView`): faces,
+  bond and trust, where each one is now. **You** (`youView`): the aim, money, skills, your life, the street log, Free play
+  and New life. The **phone** (`phoneView`, `PH`): Messages, Clout, Runner, Bank, News, Map, and Pike the lawyer once the
+  heat is on. Dialogs come up from the bottom and show the face of whoever they're about (`whoOf`).
+- **Faces** (`FACE`, `face(k, mood, size)` in art.js): every person, plus Reyes, Vance, Lena, Fitz, Carol, the IA woman and
+  a generic crew, drawn from a spec, with four expressions (up, flat, down, cold). All original.
+- **Who is where** (`SCHED`, `where(k)` in ui.js): each person keeps hours across the city. Talk buttons per place are gone;
+  you talk to whoever is there. Marcus has to be at the ramp for a drag run.
+- **Pop-ups** (`snap`, `deltas`, `toast`, `did1`): every tap that does something is wrapped in a before and after snapshot;
+  money, heat, rep, followers, skill levels and each person's bond and trust pop up when they change. Overnight changes go
+  to the **morning recap** (`EV.recap`, queued from `newDay`): yesterday's money, heat, people, the radio, today's happening
+  and the top of the list. Quiet synth sounds go with them; the speaker button in You turns them off (`shc.snd`).
+- **Next up** (`goals()` in ui.js, `GL` once per render): race day, promises, texts, rent, Sal, a clip to post, today's
+  happening, story beats waiting elsewhere (actions added with `hot` 2 in `A()`), the aim, and a nudge when nothing is
+  pressing. It drives the "Next" line on Here, the list under the map and the map's markers.
+- **Side hustles** (hustle.js): **Clout** (`S.cl`): races, drag wins, fights, getaways, the court and stunt sessions at the
+  Lake make clips (`clip`); posting one (`post`) brings followers (bigger the better the clip, sometimes viral; a getaway
+  clip brings heat), and invented sponsors (`SPON`) sign you at follower thresholds and pay every rent day while you keep
+  their terms (`sponsorWeek`). **Runner** (`S.gig`): delivery shifts from anywhere, about diner pay by the hour in the
+  truck, a rating to keep up, things that happen on a shift (`GIG`). **Tuning** (`S.tn`): once a day at Tommy's with
+  Wrenching 1: mild, hot or race maps, the hotter the riskier.
+- **Aims and happenings** (life.js): the aim (`S.asp`, `ASP`) is picked on day 1 and changeable from You; if you make it,
+  the season ends on it (`aimVerdict`). Happenings (`S.hap`, `HAP`) are rolled overnight: a block party at the court, a boat
+  show at the Lake, a double-purse fight night, checkpoints after dark, Sal paying top dollar.
 - Inside city.js: `S` is the save; `P` the characters' text and `S.pp` their state; `stage(k)` the relationship;
   `tick`, `newDay`, `dawn`, `morning` the clock; `ASK` the texts and `S.proms` the promises; `EV` the queued events;
   `A()` the actions for the place you are in; `motoCheck`, `dragMarcus`, `enterRace`, `raceDone`, `dragDone`, `cityBack`
@@ -130,8 +168,42 @@ none of them is a character in the city.
   day and per person, and rate-limited per visitor. With no connection or no gateway the option disappears.
   **It spends the site's Netlify credits**: a small model, a few hundred tokens a line. `HS_TALK_MODEL` overrides the model.
 - **18 or older**: the city asks once (`shc.adult`); saying no leaves free play. The real roster stays out of every storyline.
-- **Phone layout**: the status strip stays at the top, a tab bar at the foot switches City, People, You and Log, and the newest
-  log line shows above the place you are in.
+
+### Photographs
+
+The city's places and people are photographs where one exists, and the drawings in art.js everywhere else.
+
+- **What they are.** 65 pictures (`CATALOG` in `netlify/lib/art.mts`): each place by day and by night, four homes (bare studio,
+  furnished studio, one-bedroom, lake house), a block party, fight night, race day and the boat show, and a portrait of each
+  of the eight people in each of four moods plus Reyes, Vance, Carol, the IA woman and a generic crew. Night pictures, events
+  and moods are made by editing the first picture (`from`), so a place stays the same place and a face the same person.
+- **How they are made.** By an image model (Gemini, `MODELS`, `HS_ART_MODEL` to override) through Netlify's AI Gateway, so
+  there is no key anywhere. `POST /api/art-make {key}` (artmake.mts, a background function, because a picture can take longer
+  than the 60 seconds an ordinary function gets) makes one picture if nobody has, and keeps it in the site-wide Blobs store
+  `art`, which deploy previews and the live site share. **This spends the site's Netlify credits**: about 7 cents a picture,
+  about $5 for all 65, once. The guard rails are in the lib: only listed pictures, each once, a lock, three paid-for answers
+  with no picture in them and a picture is left alone for a week, and `HS_ART=off` stops all making (kept pictures are still
+  served). A request the gateway refuses or cannot take costs nothing and is simply tried again later; if the listed models
+  are ever retired, the function asks the gateway which picture models it has.
+- **How they are served.** `GET /api/art` (art.mts) says which exist, which are still to make, are being made, or have been
+  given up on, and carries the latest failure (`note`) for an hour: open that address to see why pictures are not coming. A picture's
+  address is `/api/art/<tag>/<name>`; the tag is a hash of its prompt, so changing a prompt makes a new picture with a new
+  address and nothing has to be purged. The city never shows that address directly: it asks the Image CDN for a small WebP
+  (`/.netlify/images?url=...`), and falls back to the original, then to the drawing.
+- **The city's side** (`src/city/photo.js`, state in `ART`): `face()` and the scene box in `hereView` use a photograph when
+  there is one (`photoFace`, `photoScene`, `sceneKeys` picks the picture for the place, hour and what is going on). Pictures
+  on screen are asked for first, two at a time, then the everyday ones quietly (`artFrame`); nothing is asked for before the
+  18+ answer, while racing, or with drawings chosen, and four tries in a row that bring nothing stop the asking for a while.
+  The scene box (`#scene`, `sceneSync`) stays on the page while the rest of Here is rebuilt, so one photograph dissolves into
+  the next; a face that has still to load fades in over the drawing. You has the Photos/Drawn switch (`shc.photo`), a count,
+  the latest failure, "Make the rest now" (every picture at once, about ten minutes with the game open) and a sheet of every
+  picture made (`photoWall`). The map and the icons stay drawn.
+- **Rules for the prompts.** Every person is an invented adult with a stated age; no real people, no one from the roster, no
+  brands or logos, nothing sexual, no recognizable faces in the places. tests/art.mjs checks the words; do not loosen them.
+- **Not proven.** No picture has been made yet from here: the sandbox cannot reach the gateway, and deploy previews sit behind
+  the Netlify login. The logic is tested against a fake store and a fake model, and the layout against placeholders. What
+  the real pictures look like, how long they take, and whether the Image CDN reads them from the function as its docs say
+  will first be seen on a deployed site. Review them there (You, "See all") and fix a bad one by changing its prompt.
 
 ## Modes
 
@@ -200,9 +272,16 @@ Chris Macclugage #46, Dustin Charrier #40. Deven, Tory, Andre and GJ have placeh
   60 frames a second, the most a screen recording captures, at the old 2x pixel cap; the 3x top level
   (`QUAL` 3, saved as `o17.q`) is not yet confirmed on his phone.
 - Check phone sizes: 440x956 at 3x (his phone) and 390x780. Nothing may scroll sideways.
+- For screenshots of the city with its real fonts in a sandbox without Google Fonts, `tests/scratch/` (git-ignored) has
+  scripts that serve Bungee and Archivo from local copies.
 - After any change to the city or to bridge.js, run `npm run test:city` and `npm run test:season`. The city uses
   `Math.random`, so a city test must not depend on a street event not happening on the way somewhere.
 - After any change to `netlify/functions/talk.mts`, run `npm run test:talk`.
+- After any change to the photographs (`netlify/lib/art.mts`, the two art functions, `src/city/photo.js`, the photo parts of
+  sw.js), run `npm run test:art` and `npm run test:photo`. Changing a prompt changes that picture's tag, so the next
+  visitor pays for it again: change prompts on purpose, not in passing.
+- The sandbox's Chrome is older than the pinned Playwright expects: run the browser tests with
+  `CHROME=/opt/pw-browsers/chromium_headless_shell` if Playwright says its browser is missing.
 - After any change to the chase in core.js, run `node tools/chase.mjs` as well as the sim: ordinary races must come out
   exactly as before (`node tools/sim.mjs havasu` before and after, compared). `npm test` (the racing smoke test) steps out
   of the city to free play first; on a machine with only software rendering it can time out waiting for frames at 3x.

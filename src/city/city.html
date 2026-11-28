@@ -1,19 +1,23 @@
-<div class="wrap" id="wrap" data-tab="city">
-  <div class="top"><h1>Side Hustle Holeshot</h1><button id="free">Free play</button></div>
-  <p class="tag" id="tag"></p>
-  <div class="hud">
-    <div class="status"><b id="clock"></b><b class="cash" id="cash"></b><span class="stars" id="stars" aria-label="Wanted level"></span><span id="rent" style="font-size:14px"></span><button class="ph" id="phone"></button></div>
+<div class="app" id="app" data-tab="here">
+  <header class="hud" id="hud">
+    <div class="hud1"><b class="clock" id="clock"></b><b class="cash" id="cash"></b><span class="stars" id="stars" role="img"></span><button class="ph" id="phone" aria-label="Phone"><i id="phico"></i><em id="badge"></em></button></div>
     <div class="meters" id="meters"></div>
-  </div>
-  <div class="main">
-    <div class="mapbox pane-city"><svg class="map" id="map" viewBox="0 0 400 300" role="group" aria-label="City map"></svg></div>
-    <div class="panel pane-city" id="here"></div>
-  </div>
-  <div class="lower">
-    <div class="panel pane-people"><h2>People</h2><p class="key"><i class="dot"></i>Bond: how close you are. <i class="dot t"></i>Trust: whether they believe you. Tap a name for more.</p><div id="people"></div></div>
-    <div class="panel pane-you"><h2>You</h2><div id="you"></div></div>
-    <div class="panel pane-log"><h2>Street log</h2><div class="log" id="log"></div><div style="margin-top:12px"><button id="reset">Start a new life <small>wipes save</small></button></div></div>
-  </div>
+  </header>
+  <div class="toasts" id="toasts" aria-live="polite"></div>
+  <main>
+    <section class="pane pane-here" id="here"></section>
+    <section class="pane pane-map"><div class="mapwrap"><svg class="map" id="map" viewBox="0 0 400 560" role="group" aria-label="City map"></svg><div class="mapover" id="mapover"></div></div><div class="mapgoals" id="mapgoals"></div></section>
+    <section class="pane pane-hustle" id="hustle"></section>
+    <section class="pane pane-people" id="people"></section>
+    <section class="pane pane-you" id="you"></section>
+  </main>
+  <nav class="tabs" id="tabs" aria-label="Sections">
+    <button data-tab="here" aria-pressed="true"><i data-i="here"></i><span>Here</span></button>
+    <button data-tab="map" aria-pressed="false"><i data-i="map"></i><span>Map</span></button>
+    <button data-tab="hustle" aria-pressed="false"><i data-i="case"></i><span>Hustles</span></button>
+    <button data-tab="people" aria-pressed="false"><i data-i="people"></i><span>People</span></button>
+    <button data-tab="you" aria-pressed="false"><i data-i="user"></i><span>You</span></button>
+  </nav>
 </div>
-<nav class="tabs" id="tabs" aria-label="Sections"><button data-tab="city" aria-pressed="true">City</button><button data-tab="people" aria-pressed="false">People</button><button data-tab="you" aria-pressed="false">You</button><button data-tab="log" aria-pressed="false">Log</button></nav>
+<div class="phoneui" id="phoneui" hidden><div class="pbox"><div class="pbar"><span>Side Hustle Mobile</span><button data-pclose aria-label="Put the phone away">Put it away</button></div><div class="pscreen" id="pscreen"></div></div></div>
 <div class="modal" id="modal"><div class="sheet" id="sheet"></div></div>
