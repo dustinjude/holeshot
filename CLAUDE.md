@@ -1,6 +1,7 @@
 # Holeshot: notes for Claude Code
 
-Jet ski closed-course racing seen from low behind your ski, built for phones. A static web app (three.js r128, no
+Jet ski closed-course racing seen from low behind your ski, built for phones, inside a life sim, **Side Hustle City**,
+which is the main game: the app opens in the city and the racing is reached from it. A static web app (three.js r128, no
 framework) that installs to a home screen and plays offline. Owner: Dustin Charrier (Dean Strong Watercraft
 Performance), who plays on an iPhone 18 Pro Max and judges the game there.
 
@@ -16,12 +17,15 @@ checked and what you couldn't check.
 - `npm run sim` (or `node tools/sim.mjs arena`): whole races in Node, no browser.
 - `npm test`: build a test copy and race it in headless Chrome at iPhone Pro Max size. First run:
   `npm install && npx playwright install chromium`.
+- `npm run test:city`: plays the city in headless Chrome and goes through it into the garage, an open race, a drag run, a
+  whole race weekend, a retirement, a missed weekend, and free play. It drives time with the test hooks, so it is not
+  slowed by software rendering.
 - `npm run model -- <file.glb> <name>`: shrink a 3D model into `models/<name>/` (see Models).
 
 ## Layout
 
 - `src/game/*.js`: the game. `build.mjs` joins them into one strict-mode IIFE, `dist/js/game.js`: `core.js` first,
-  then `shell.js`, which has one marker line each (`//@arcade`, `//@draw`, `//@r3`, `//@party`) where those files
+  then `shell.js`, which has one marker line each (`//@arcade`, `//@draw`, `//@r3`, `//@party`, `//@bridge`) where those files
   are inserted. Everything shares one scope, so a function in one file calls one in another directly, and top-level
   `const`s are initialised in that order.
   - `core.js`: game logic, no DOM. Racers, crafts, garage parts, the 11 courses in `SITES` plus the drag strip,
@@ -38,6 +42,12 @@ checked and what you couldn't check.
     `g3Emit` spray; `render3` camera and frame; fireworks and podium (`g3Fw*`, `g3Cer*`); racers' own models
     (`MODELS`, `g3Models`, `g3UseModels`); painted ski models (`BASES`, `g3Bases`, `g3UseBases`, `skinPrep`, `skinPaint`).
   - `arcade.js`: the item race and the crate run. `party.js`: the win celebration and the award ceremony.
+  - `bridge.js`: everything the city needs from the racing, as `window.HS`, and the switch between the city's garage and
+    tour and free play's (`cityOn`, `cityOff`, `PKEY`). See Side Hustle City below.
+- `src/city/`: Side Hustle City. `city.js` is one closure of its own, built to `dist/js/city.js` and loaded after the
+  game. **Do not join it into the game's scope**: it has its own `stage`, `reset`, `render`, `tick`, `log`, `S`, `P`, `L`.
+  `city.css` and `city.html` are put into a `<template id="cityT">` in the page (`/*@citycss*/`, `<!--@city-->`), which
+  the script copies into a shadow root on `<div id="city">`, so the city's styles and the race's cannot meet.
 - `src/index.html` (markup, `/*@css*/` placeholder), `src/style.css`, `src/sw.js` (offline cache; the build fills
   in its file list and a version hash, so never bump it by hand), `src/manifest.webmanifest`, `src/icons/`.
 - `vendor/`: three.js r128 and its r128 `GLTFLoader` (non-module, `THREE.GLTFLoader`). Pinned on purpose: the code
@@ -49,7 +59,44 @@ Coordinates: the race runs on a flat map (x, y); in 3D that is (x, z) with y up.
 +z is the rider's right. Model files point their bow along +z with the keel at y=0; the loader turns and scales them
 to the built hull they replace.
 
+## Side Hustle City
+
+The main game. A season in a city: $200, a studio apartment, a bare ski, rent every week, jobs, hustles, heat and
+cops, and eight people (Rosa, Nia, Dex, Marcus, Sal, June, Tommy, Kowalski, all invented) who each hold a bond with you
+and a trust in you that move separately, remember what you did, text you for help, and talk to each other. It is
+written for adults: crime, drinking, fights, dating that fades to black. The racers on the water are the real roster;
+none of them is a character in the city.
+
+- The city is a full-screen layer over the race page. While it shows, `window.CITYON` is true and `frame()` and `key()`
+  do nothing. The city never touches the game's internals: it calls `window.HS` (bridge.js) and nothing else.
+- **One wallet.** In the city `gar.cash` is a getter and setter over the city's money (`HS.wallet`), so rent, parts,
+  shifts, hustles and prize money are the same money. The city starts with $200, not $3,500.
+- **Its own garage and tour**, saved under `city.` (`PKEY`): `city.garage1`, `city.tour13`, `city.racer`, `city.craft`,
+  `city.paint`, `city.o8.pace`. Free play keeps its own. The city's own save is the localStorage key `shc` (not under
+  `holeshot.`). Rivals are on Auto in the city; the Pro default is for free play.
+- **The calendar.** A race weekend every five days (`motoDay` in city.js), so the nine weekends make a 45-day season
+  (`S.life`). At the Lake on race day the city opens the pits (`HS.open({mode:'tour'})`); both motos, the ceremony and
+  the standings run as in Tour, and then the result goes back (`done(res)`). Miss the day and `HS.skip()` gives the field
+  the points for the whole weekend.
+- **Other ways in.** `open`: one race for a small purse (0.3), once a day. `drag`: one run against Marcus for a side bet
+  made in the city, or pink slips; he is not on the roster, the rival ski is renamed and repainted (`MARCUS`), and
+  `level` 0 to 2 sets his drag parts. `garage`: Tommy's Garage, the only place parts can be bought in the city, at
+  `disc` (15% off as his friend, 25% once you own the place); `svc` cuts service by wrenching skill.
+- **No restarts in the city.** The pause plate offers "Retire: counts as a DNF" (`hsRetire`), which in a tour ends the
+  weekend. Racer and craft lock once the city's tour is live, so the parts stay on one ski.
+- `tourScore(order, out)` in shell.js books one moto; `finish()`, `hsSkip` and `hsRetire` all go through it.
+- Free play (Race, Tour, Drag ladder, Items, Crates) is the "Free play" button at the top of the city, and "Back to
+  the city" on the setup plate returns. Check after any change to shell.js that free play behaves as it did.
+- Inside city.js: `S` is the save; `P` the characters' text and `S.pp` their state; `stage(k)` the relationship;
+  `tick`, `newDay`, `dawn`, `morning` the clock; `ASK` the texts and `S.proms` the promises; `EV` the queued events;
+  `A()` the actions for the place you are in; `motoCheck`, `dragMarcus`, `enterRace`, `raceDone`, `dragDone`, `cityBack`
+  where it meets the racing.
+- Not proven: nobody has played a whole season for balance (prize money against rent and parts, how fast bonds grow),
+  and the city has not been judged on the phone yet.
+
 ## Modes
+
+These are free play, and what the city's race weekends, open race and drag runs are built on.
 
 - Race: one race, 10 riders, 3 laps (4 at Sundown Stadium, 1 at Jet Around Cayman), on any course in either direction.
 - Jet Around Cayman (`cayman`): after the real endurance race once round Grand Cayman (Easter Monday, from Seven
@@ -114,6 +161,8 @@ Chris Macclugage #46, Dustin Charrier #40. Deven, Tory, Andre and GJ have placeh
   60 frames a second, the most a screen recording captures, at the old 2x pixel cap; the 3x top level
   (`QUAL` 3, saved as `o17.q`) is not yet confirmed on his phone.
 - Check phone sizes: 440x956 at 3x (his phone) and 390x780. Nothing may scroll sideways.
+- After any change to the city or to bridge.js, run `npm run test:city`. `npm test` (the racing smoke test) steps out
+  of the city to free play first; on a machine with only software rendering it can time out waiting for frames at 3x.
 
 ## Conventions
 

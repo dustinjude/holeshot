@@ -14,7 +14,7 @@
 <link rel="icon" href="icons/icon-192.png">
 <link rel="apple-touch-icon" href="icons/apple-touch-icon.png">
 <style>:root{color-scheme:dark}html,body{margin:0;-webkit-tap-highlight-color:transparent;-webkit-user-select:none;user-select:none;overscroll-behavior:none}img{max-width:100%}</style>
-<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Barlow+Condensed:ital,wght@0,600;0,700;1,700;1,800&family=Barlow:wght@400;600&display=swap">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Barlow+Condensed:ital,wght@0,600;0,700;1,700;1,800&family=Barlow:wght@400;600&family=Bungee&family=Archivo:wght@400;600;800&display=swap">
 <style>
 /*@css*/
 </style>
@@ -42,9 +42,9 @@
 <div class="pad pad-r" id="padR" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><path d="M9 4l8 8-8 8" fill="none"/></svg></div>
 
 <section class="plate" id="start">
-  <div class="eyebrow">Closed course &middot; 10 riders</div>
+  <div class="eyebrow" id="startEyebrow">Closed course &middot; 10 riders</div>
   <h1>Holeshot</h1>
-  <div class="tabs five">
+  <div class="tabs five" id="modes">
     <button class="tab" id="modeS" type="button" aria-pressed="true">Race</button>
     <button class="tab" id="modeT" type="button" aria-pressed="false">Tour</button>
     <button class="tab" id="modeD" type="button" aria-pressed="false">Drag</button>
@@ -106,6 +106,7 @@
   <p class="fine" id="setup">Dustin &middot; Sea-Doo 325 &middot; Lake Havasu</p>
   <button class="go" id="go" type="button">Start race</button>
   <button class="alt" id="quit" type="button" hidden>Abandon tour</button>
+  <button class="alt" id="toCity" type="button">Back to the city</button>
 </section>
 
 <section class="plate" id="result" hidden>
@@ -135,10 +136,19 @@
   <button class="alt" id="toSetup" type="button">Back to setup</button>
 </section>
 
+<!-- Side Hustle City, the main game. It sits over the race in a shadow root, so its styles and the race's cannot meet. -->
+<div id="city" hidden></div>
+<template id="cityT"><style>
+/*@citycss*/
+</style>
+<!--@city-->
+</template>
+
 <!-- three.js r128 and its glTF loader are kept in js/ so the installed app works with no connection -->
 <script src="js/three.min.js"></script>
 <script src="js/GLTFLoader.js"></script>
 <script src="js/game.js"></script>
+<script src="js/city.js"></script>
 <script>
 if('serviceWorker' in navigator&&location.protocol==='https:') window.addEventListener('load',()=>navigator.serviceWorker.register('sw.js').catch(()=>{}));
 </script>

@@ -1,7 +1,9 @@
 # Holeshot
 
-Jet ski closed-course racing from behind your ski. Race, tour weekends with an award ceremony, drag ladder, garage,
-and two arcade modes. Runs in the browser and installs to a phone's home screen as an app that works offline.
+Side Hustle City and jet ski closed-course racing from behind your ski. The app opens in the city: a season of rent,
+jobs, hustles and people, with a race weekend every five days, your ski built at Tommy's Garage, and one wallet for all
+of it. Free play has the racing on its own: race, tour weekends with an award ceremony, drag ladder, garage, and two
+arcade modes. Runs in the browser and installs to a phone's home screen as an app that works offline.
 
 ## Work on it
 
