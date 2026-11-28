@@ -356,7 +356,7 @@ function runGrid(W,pr,pc,pm,n,pace,cm){
     Object.assign(s,PATROL,{name:'Patrol '+(i+1),num:i+1,hunt:true,cop:true,hit:0,hold:2.5+3.5*i,cool:0,push:.02+.06*pace,ease:.3,line:.3});
     W.skis.push(s);
   }
-  W.run={bust:0,cargo:100,near:0,dist:1e9,clear:0,hits:0,lands:W.pl.lands,last:2.5+3.5*Math.max(0,n-1)};
+  W.run={bust:0,cargo:100,near:0,dist:1e9,ah:0,sd:0,clear:0,hits:0,lands:W.pl.lands,last:2.5+3.5*Math.max(0,n-1)};
   for(const t of W.turns) t.wob=0;
   const first=Math.max(0,W.turns.findIndex(t=>t.idx>FRONT));
   for(const s of W.skis) s.tn=first;
@@ -369,7 +369,9 @@ function chaseStep(W,dt){
   const R=W.run, P=W.pl; let near=0, d1=1e9;
   for(const s of W.skis){
     if(!s.cop) continue;
-    const d=Math.hypot(s.x-P.x,s.y-P.y); if(d<d1) d1=d;
+    const d=Math.hypot(s.x-P.x,s.y-P.y);
+    // where the nearest one is from the saddle: ah ahead (negative is behind), sd to the right
+    if(d<d1){d1=d; const ch=Math.cos(P.h), sh=Math.sin(P.h); R.ah=(s.x-P.x)*ch+(s.y-P.y)*sh; R.sd=-(s.x-P.x)*sh+(s.y-P.y)*ch;}
     if(d<CHASE_R&&s.hold<=0) near++;
     // a patrol ski that gets hull to hull rams the player: it knocks speed off them and the load about, then drops back to come again
     if(d<CHASE_TOUCH&&s.hold<=0&&s.cool<=0&&!s.hit){

@@ -224,6 +224,9 @@ try {
   check(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth) && await page.isVisible('#toCity'), 'the pits fit at 390 wide, with the way back in view');
   await page.screenshot({path: join(OUT, 'garage-390.png')});
   await page.click('#toCity');
+  // after runs from the law, free play still lines up a full field with its own labels
+  await press('Free play'); await page.click('#modeS'); await page.click('#go'); await run(4); s = await hs();
+  check(s.gmode === 'single' && s.mode === 'race' && !s.run && await page.evaluate(() => document.querySelector('#hud .lbl').textContent === 'Pos' && document.getElementById('posN').textContent === '/10'), 'free play after a run: ten riders, position and lap on the strip');
 } finally {
   await browser.close();
   server.close();

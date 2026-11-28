@@ -357,7 +357,7 @@ function runGrid(W,pr,pc,pm,n,pace,cm){
     Object.assign(s,PATROL,{name:'Patrol '+(i+1),num:i+1,hunt:true,cop:true,hit:0,hold:2.5+3.5*i,cool:0,push:.02+.06*pace,ease:.3,line:.3});
     W.skis.push(s);
   }
-  W.run={bust:0,cargo:100,near:0,dist:1e9,clear:0,hits:0,lands:W.pl.lands,last:2.5+3.5*Math.max(0,n-1)};
+  W.run={bust:0,cargo:100,near:0,dist:1e9,ah:0,sd:0,clear:0,hits:0,lands:W.pl.lands,last:2.5+3.5*Math.max(0,n-1)};
   for(const t of W.turns) t.wob=0;
   const first=Math.max(0,W.turns.findIndex(t=>t.idx>FRONT));
   for(const s of W.skis) s.tn=first;
@@ -370,7 +370,9 @@ function chaseStep(W,dt){
   const R=W.run, P=W.pl; let near=0, d1=1e9;
   for(const s of W.skis){
     if(!s.cop) continue;
-    const d=Math.hypot(s.x-P.x,s.y-P.y); if(d<d1) d1=d;
+    const d=Math.hypot(s.x-P.x,s.y-P.y);
+    // where the nearest one is from the saddle: ah ahead (negative is behind), sd to the right
+    if(d<d1){d1=d; const ch=Math.cos(P.h), sh=Math.sin(P.h); R.ah=(s.x-P.x)*ch+(s.y-P.y)*sh; R.sd=-(s.x-P.x)*sh+(s.y-P.y)*ch;}
     if(d<CHASE_R&&s.hold<=0) near++;
     // a patrol ski that gets hull to hull rams the player: it knocks speed off them and the load about, then drops back to come again
     if(d<CHASE_TOUCH&&s.hold<=0&&s.cool<=0&&!s.hit){
@@ -4660,6 +4662,13 @@ function runOverlay(){
   ctx.fillStyle=on?(lit?'#e4392c':'#2f6fe4'):'#f1b53c'; ctx.fillRect(x,y,w*R.bust/100,10);
   ctx.font="800 12px 'Barlow Condensed','Arial Narrow',sans-serif"; ctx.textAlign='left'; ctx.textBaseline='top';
   ctx.fillStyle='#fff'; ctx.fillText(on?'PATROL ON YOU':'THE LAW',x,y+16);
+  // a patrol ski that is behind or alongside cannot be seen from the saddle: a marker low on the screen shows which side it is on,
+  // bigger the closer it is
+  if(R.dist<420&&R.ah<30){
+    const mx=W/2+clamp(R.sd/90,-1,1)*(W/2-46), my=H*.76, r=9+10*(1-R.dist/420);
+    ctx.fillStyle=lit?'#e4392c':'#2f6fe4'; ctx.beginPath(); ctx.moveTo(mx-r,my-r); ctx.lineTo(mx+r,my-r); ctx.lineTo(mx,my+r*.7); ctx.closePath(); ctx.fill();
+    ctx.strokeStyle='rgba(255,255,255,.9)'; ctx.lineWidth=2; ctx.stroke();
+  }
   if(on){
     // the lights wash the edges of the screen
     const g=ctx.createLinearGradient(0,0,W,0), a=lit?'228,57,44':'47,111,228', b=lit?'47,111,228':'228,57,44';

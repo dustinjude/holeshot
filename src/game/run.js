@@ -65,6 +65,13 @@ function runOverlay(){
   ctx.fillStyle=on?(lit?'#e4392c':'#2f6fe4'):'#f1b53c'; ctx.fillRect(x,y,w*R.bust/100,10);
   ctx.font="800 12px 'Barlow Condensed','Arial Narrow',sans-serif"; ctx.textAlign='left'; ctx.textBaseline='top';
   ctx.fillStyle='#fff'; ctx.fillText(on?'PATROL ON YOU':'THE LAW',x,y+16);
+  // a patrol ski that is behind or alongside cannot be seen from the saddle: a marker low on the screen shows which side it is on,
+  // bigger the closer it is
+  if(R.dist<420&&R.ah<30){
+    const mx=W/2+clamp(R.sd/90,-1,1)*(W/2-46), my=H*.76, r=9+10*(1-R.dist/420);
+    ctx.fillStyle=lit?'#e4392c':'#2f6fe4'; ctx.beginPath(); ctx.moveTo(mx-r,my-r); ctx.lineTo(mx+r,my-r); ctx.lineTo(mx,my+r*.7); ctx.closePath(); ctx.fill();
+    ctx.strokeStyle='rgba(255,255,255,.9)'; ctx.lineWidth=2; ctx.stroke();
+  }
   if(on){
     // the lights wash the edges of the screen
     const g=ctx.createLinearGradient(0,0,W,0), a=lit?'228,57,44':'47,111,228', b=lit?'47,111,228':'228,57,44';
